@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import api from "../api";
 import { PHARMACIES, CATEGORIES } from "../types";
 
 interface PatientSummary {

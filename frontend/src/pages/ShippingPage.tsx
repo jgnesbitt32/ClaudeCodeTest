@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import axios from "axios";
+import api from "../api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface ShippingRecord {
@@ -100,7 +100,7 @@ export default function ShippingPage() {
       if (location) params.location = location;
       if (status) params.status = status;
 
-      const { data } = await axios.get("/api/shipping", { params });
+      const { data } = await api.get("/api/shipping", { params });
       setRecords(data.records);
       setSummary(data.summary);
       setError(null);
@@ -129,7 +129,7 @@ export default function ShippingPage() {
 
     setSaving(s => ({ ...s, [row.id]: true }));
     try {
-      const { data } = await axios.patch<ShippingRecord>(`/api/shipping/${row.id}`, patch);
+      const { data } = await api.patch<ShippingRecord>(`/api/shipping/${row.id}`, patch);
       setRecords(prev => prev.map(r => r.id === row.id ? data : r));
       setPending(p => { const n = { ...p }; delete n[row.id]; return n; });
       setSaved(s => ({ ...s, [row.id]: true }));
