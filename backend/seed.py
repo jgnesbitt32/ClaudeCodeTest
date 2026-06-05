@@ -144,12 +144,19 @@ def build_refill_worklist(db, df: pd.DataFrame) -> tuple[int, int]:
     # otherwise fall back to max date_completed from what we just ingested.
     latest_col = "LATEST ROW" if "LATEST ROW" in df.columns else None
 
+    df["_dc"] = pd.to_datetime(df["DATE COMPLETED"], errors="coerce")
+
     if latest_col:
-        latest_df = df[df[latest_col].astype(str).str.strip().str.upper().isin(["1", "TRUE", "YES", "X"])]
+        # LATEST ROW values: "LATEST" (active), "SCHEDULED" (already scheduled),
+        # "OLD" (historical), "PRN" (as-needed), "DISCONTINUED"
+        filtered = df[df[latest_col].astype(str).str.strip().str.upper().isin(["LATEST", "SCHEDULED"])]
     else:
-        # Fall back: pick row with max DATE COMPLETED per (PTSN, DRUG)
-        df["_dc"] = pd.to_datetime(df["DATE COMPLETED"], errors="coerce")
-        latest_df = df.loc[df.groupby(["PTSN", "DRUG"])["_dc"].idxmax()]
+        filtered = df
+
+    # Deduplicate: one row per (PTSN, DRUG) — keep most recent DATE COMPLETED
+    filtered = filtered.copy()
+    idx = filtered.groupby(["PTSN", "DRUG"])["_dc"].idxmax()
+    latest_df = filtered.loc[idx]
 
     inserted = updated = 0
 
