@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import api from "../api";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
@@ -6,7 +6,7 @@ import {
 } from "recharts";
 import type { Refill } from "../types";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 interface Summary {
   call_today: number;
   past_due: number;
@@ -30,7 +30,7 @@ interface DashboardData {
   shipping_today: ShippingRecord[];
 }
 
-// ── Colours ───────────────────────────────────────────────────────────────────
+// â”€â”€ Colours â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const CLASS_COLORS: Record<string, string> = {
   IVIG: "#4a7fd4", HEME: "#e94560", ANC_BILLED: "#22c55e",
 };
@@ -43,13 +43,13 @@ function fmt(v: number) {
   return v.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 }
 
-// ── Dashboard ─────────────────────────────────────────────────────────────────
+// â”€â”€ Dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.get<DashboardData>("/api/dashboard")
+    api.get<DashboardData>("/dashboard")
       .then(r => setData(r.data))
       .catch(() => setError("Failed to load dashboard. Is the backend running?"));
   }, []);
@@ -61,7 +61,7 @@ export default function DashboardPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Row 1 — Stat cards */}
+      {/* Row 1 â€” Stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         <StatCard label="Call Today" value={summary.call_today} color="blue" />
         <StatCard label="Past Due" value={summary.past_due} color={summary.past_due > 0 ? "red" : "gray"} />
@@ -71,7 +71,7 @@ export default function DashboardPage() {
         <GoalCard pct={summary.pct_to_goal} goal={summary.monthly_goal} actual={summary.mtd_revenue} />
       </div>
 
-      {/* Row 2 — Charts */}
+      {/* Row 2 â€” Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ChartCard title="This Week's Opportunities by Class">
           {opportunities_by_class.length === 0 ? (
@@ -120,12 +120,12 @@ export default function DashboardPage() {
         </ChartCard>
       </div>
 
-      {/* Row 3 — Action lists */}
+      {/* Row 3 â€” Action lists */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Needs Attention */}
-        <ActionCard title="Needs Attention" subtitle="Past Due — highest value first">
+        <ActionCard title="Needs Attention" subtitle="Past Due â€” highest value first">
           {needs_attention.length === 0 ? (
-            <Empty msg="No past-due refills 🎉" />
+            <Empty msg="No past-due refills ðŸŽ‰" />
           ) : (
             <table className="w-full text-sm">
               <thead>
@@ -141,7 +141,7 @@ export default function DashboardPage() {
                   <tr key={r.id} className="hover:bg-gray-50">
                     <td className="py-2 font-medium text-gray-800 max-w-[130px] truncate">{r.patient}</td>
                     <td className="py-2 text-gray-500 max-w-[140px] truncate" title={r.drug ?? ""}>{r.drug}</td>
-                    <td className="py-2 text-red-500 whitespace-nowrap text-xs">{r.next_call_date ?? "—"}</td>
+                    <td className="py-2 text-red-500 whitespace-nowrap text-xs">{r.next_call_date ?? "â€”"}</td>
                     <td className="py-2 text-right font-semibold text-gray-800">{fmt(r.tp ?? 0)}</td>
                   </tr>
                 ))}
@@ -167,7 +167,7 @@ export default function DashboardPage() {
               <tbody className="divide-y divide-gray-50">
                 {shipping_today.map((s) => (
                   <tr key={s.id} className="hover:bg-gray-50">
-                    <td className="py-2 font-medium text-gray-800 max-w-[130px] truncate">{s.patient ?? "—"}</td>
+                    <td className="py-2 font-medium text-gray-800 max-w-[130px] truncate">{s.patient ?? "â€”"}</td>
                     <td className="py-2 text-gray-500 max-w-[150px] truncate" title={s.medication ?? ""}>{s.medication}</td>
                     <td className="py-2 text-right font-semibold text-gray-800">{fmt(s.total_paid ?? 0)}</td>
                     <td className="py-2 pl-3">
@@ -184,7 +184,7 @@ export default function DashboardPage() {
   );
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function StatCard({ label, value, color }: { label: string; value: string | number; color: string }) {
   const ring: Record<string, string> = {
     blue: "border-l-[#4a7fd4]", red: "border-l-red-500", purple: "border-l-purple-500",
@@ -250,7 +250,7 @@ function Empty({ msg }: { msg: string }) {
 function LoadingSpinner() {
   return (
     <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
-      Loading dashboard…
+      Loading dashboardâ€¦
     </div>
   );
 }
@@ -260,3 +260,4 @@ function ErrorBanner({ msg }: { msg: string }) {
     <div className="m-6 bg-red-50 border border-red-200 text-red-700 rounded-lg p-4 text-sm">{msg}</div>
   );
 }
+

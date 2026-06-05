@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../api";
 import type { Refill } from "../types";
@@ -77,13 +77,13 @@ export default function PatientDetailPage() {
 
   useEffect(() => {
     if (!ptsn) return;
-    api.get<PatientDetail>(`/api/patients/${ptsn}`)
+    api.get<PatientDetail>(`/patients/${ptsn}`)
       .then(r => { setData(r.data); setError(null); })
       .catch(() => setError("Patient not found."))
       .finally(() => setLoading(false));
   }, [ptsn]);
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400">Loading…</div>;
+  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400">Loadingâ€¦</div>;
   if (error || !data) return (
     <div className="p-6">
       <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4 text-sm">{error ?? "Not found"}</div>
@@ -98,7 +98,7 @@ export default function PatientDetailPage() {
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <button onClick={() => navigate("/patients")}
           className="text-xs text-[#4a7fd4] hover:underline mb-2 flex items-center gap-1">
-          ← Back to Patients
+          â† Back to Patients
         </button>
         <div className="flex items-start gap-4">
           <div className="w-12 h-12 rounded-full bg-[#1a3a6b] flex items-center justify-center text-white font-bold text-lg shrink-0">
@@ -108,15 +108,15 @@ export default function PatientDetailPage() {
             <h2 className="text-xl font-bold text-gray-900">{profile.patient}</h2>
             <div className="flex flex-wrap gap-3 mt-1 text-sm text-gray-500 items-center">
               <span className="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded">PTSN {profile.ptsn}</span>
-              <span>{profile.pharmacy ?? "—"}</span>
+              <span>{profile.pharmacy ?? "â€”"}</span>
               {profile.category && (
                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${categoryBadge(profile.category)}`}>
                   {profile.category}
                 </span>
               )}
-              <span className="text-gray-400">·</span>
+              <span className="text-gray-400">Â·</span>
               <span>{profile.total_fills} total fills</span>
-              <span className="text-gray-400">·</span>
+              <span className="text-gray-400">Â·</span>
               <span className="font-semibold text-gray-700">{fmt(profile.total_tp)} lifetime TP</span>
             </div>
           </div>
@@ -153,18 +153,18 @@ export default function PatientDetailPage() {
   );
 }
 
-// ── Profile Tab ───────────────────────────────────────────────────────────────
+// â”€â”€ Profile Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function ProfileTab({ profile }: { profile: Profile }) {
   const rows = [
     ["PTSN", profile.ptsn],
     ["Patient Name", profile.patient],
-    ["Pharmacy", profile.pharmacy ?? "—"],
-    ["Category", profile.category ?? "—"],
-    ["Prescriber", profile.prescriber ?? "—"],
-    ["Rep", profile.rep ?? "—"],
-    ["Plan Type", profile.plan_type ?? "—"],
-    ["First Fill Date", profile.first_fill_date ?? "—"],
-    ["Last Fill Date", profile.last_fill_date ?? "—"],
+    ["Pharmacy", profile.pharmacy ?? "â€”"],
+    ["Category", profile.category ?? "â€”"],
+    ["Prescriber", profile.prescriber ?? "â€”"],
+    ["Rep", profile.rep ?? "â€”"],
+    ["Plan Type", profile.plan_type ?? "â€”"],
+    ["First Fill Date", profile.first_fill_date ?? "â€”"],
+    ["Last Fill Date", profile.last_fill_date ?? "â€”"],
     ["Total Fills", String(profile.total_fills)],
     ["Lifetime TP", profile.total_tp.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })],
   ];
@@ -186,7 +186,7 @@ function ProfileTab({ profile }: { profile: Profile }) {
   );
 }
 
-// ── Refills Tab ───────────────────────────────────────────────────────────────
+// â”€â”€ Refills Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function RefillsTab({ refills }: { refills: Refill[] }) {
   if (refills.length === 0)
     return <p className="text-gray-400 text-sm">No refill records for this patient.</p>;
@@ -211,16 +211,16 @@ function RefillsTab({ refills }: { refills: Refill[] }) {
             <tr key={r.id} className="hover:bg-gray-50">
               <td className="px-4 py-2 font-medium text-gray-800 max-w-[200px] truncate" title={r.drug}>{r.drug}</td>
               <td className="px-4 py-2">
-                <span className={`px-2 py-0.5 rounded text-xs font-semibold ${bucketBadge(r.bucket)}`}>{r.bucket ?? "—"}</span>
+                <span className={`px-2 py-0.5 rounded text-xs font-semibold ${bucketBadge(r.bucket)}`}>{r.bucket ?? "â€”"}</span>
               </td>
-              <td className="px-4 py-2 text-gray-500 text-xs">{r.next_call_date ?? "—"}</td>
-              <td className="px-4 py-2 text-gray-600 text-xs">{r.current_status ?? "—"}</td>
-              <td className="px-4 py-2 text-gray-500 text-xs">{r.coach ?? "—"}</td>
-              <td className="px-4 py-2 text-gray-500 text-xs">{r.ship_date ?? "—"}</td>
+              <td className="px-4 py-2 text-gray-500 text-xs">{r.next_call_date ?? "â€”"}</td>
+              <td className="px-4 py-2 text-gray-600 text-xs">{r.current_status ?? "â€”"}</td>
+              <td className="px-4 py-2 text-gray-500 text-xs">{r.coach ?? "â€”"}</td>
+              <td className="px-4 py-2 text-gray-500 text-xs">{r.ship_date ?? "â€”"}</td>
               <td className="px-4 py-2 text-right font-semibold text-gray-800">
-                {r.tp != null ? r.tp.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }) : "—"}
+                {r.tp != null ? r.tp.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }) : "â€”"}
               </td>
-              <td className="px-4 py-2 text-gray-400 text-xs max-w-[180px] truncate" title={r.notes ?? ""}>{r.notes ?? "—"}</td>
+              <td className="px-4 py-2 text-gray-400 text-xs max-w-[180px] truncate" title={r.notes ?? ""}>{r.notes ?? "â€”"}</td>
             </tr>
           ))}
         </tbody>
@@ -229,7 +229,7 @@ function RefillsTab({ refills }: { refills: Refill[] }) {
   );
 }
 
-// ── Shipping Tab ──────────────────────────────────────────────────────────────
+// â”€â”€ Shipping Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function ShippingTab({ shipping }: { shipping: ShippingRecord[] }) {
   if (shipping.length === 0)
     return <p className="text-gray-400 text-sm">No shipping records for this patient.</p>;
@@ -250,12 +250,12 @@ function ShippingTab({ shipping }: { shipping: ShippingRecord[] }) {
         <tbody className="divide-y divide-gray-100">
           {shipping.map(s => (
             <tr key={s.id} className="hover:bg-gray-50">
-              <td className="px-4 py-2 text-gray-600">{s.shipping_date ?? "—"}</td>
-              <td className="px-4 py-2 font-medium text-gray-800 max-w-[200px] truncate" title={s.medication ?? ""}>{s.medication ?? "—"}</td>
+              <td className="px-4 py-2 text-gray-600">{s.shipping_date ?? "â€”"}</td>
+              <td className="px-4 py-2 font-medium text-gray-800 max-w-[200px] truncate" title={s.medication ?? ""}>{s.medication ?? "â€”"}</td>
               <td className="px-4 py-2">
-                <span className="px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600">{s.fill_for_month ?? "—"}</span>
+                <span className="px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600">{s.fill_for_month ?? "â€”"}</span>
               </td>
-              <td className="px-4 py-2 text-gray-500 text-xs">{s.location ?? "—"}</td>
+              <td className="px-4 py-2 text-gray-500 text-xs">{s.location ?? "â€”"}</td>
               <td className="px-4 py-2 text-right font-semibold text-gray-800">{fmt(s.total_paid ?? 0)}</td>
               <td className="px-4 py-2">
                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${
@@ -263,7 +263,7 @@ function ShippingTab({ shipping }: { shipping: ShippingRecord[] }) {
                   : s.status === "PENDING" ? "bg-blue-100 text-blue-700"
                   : s.status === "DELAYED" ? "bg-yellow-100 text-yellow-700"
                   : "bg-gray-100 text-gray-500"
-                }`}>{s.status ?? "—"}</span>
+                }`}>{s.status ?? "â€”"}</span>
               </td>
             </tr>
           ))}
@@ -273,7 +273,7 @@ function ShippingTab({ shipping }: { shipping: ShippingRecord[] }) {
   );
 }
 
-// ── Notes Tab ─────────────────────────────────────────────────────────────────
+// â”€â”€ Notes Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function NotesTab({ notes }: { notes: NoteEntry[] }) {
   if (notes.length === 0)
     return <p className="text-gray-400 text-sm">No notes recorded for this patient yet. Add notes from the Refills page.</p>;
@@ -294,3 +294,4 @@ function NotesTab({ notes }: { notes: NoteEntry[] }) {
     </div>
   );
 }
+

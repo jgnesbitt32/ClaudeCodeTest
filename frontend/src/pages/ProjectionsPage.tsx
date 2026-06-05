@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import api from "../api";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell,
   PieChart, Pie,
 } from "recharts";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 interface ForecastLine {
   cat: string; patient: string; ptsn: string; drug: string; ndc: string;
   tp: number; gp: number; acq: number; copay: number;
@@ -24,7 +24,7 @@ interface ForecastData {
   actuals: ActualLine[];
 }
 
-// ── Theme ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Theme â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const BG = "#0f1923";
 const CARD = "#1a2736";
 const BORDER = "#2a3a4a";
@@ -47,7 +47,7 @@ function ltColor(lt: string) {
   return LAVENDER;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString();
 const fmtM = (n: number) =>
   Math.abs(n) >= 1e6 ? `$${(n / 1e6).toFixed(2)}M` : Math.abs(n) >= 1e3 ? `$${(n / 1e3).toFixed(0)}K` : fmt(n);
@@ -70,7 +70,7 @@ function monthTitle(m: string) {
 
 function dom(iso: string) { return new Date(iso + "T00:00:00").getDate(); }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function DCard({ title, children, style }: { title?: string; children: React.ReactNode; style?: React.CSSProperties }) {
   return (
     <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 20, ...style }}>
@@ -97,7 +97,7 @@ function KPI({ label, value, sub, color }: { label: string; value: string; sub: 
 const tickStyle = { fill: MUTED, fontSize: 11 };
 const ttStyle = { backgroundColor: CARD, border: `1px solid ${BORDER}`, color: TEXT, fontSize: 12 };
 
-// ── ProjectionsPage ───────────────────────────────────────────────────────────
+// â”€â”€ ProjectionsPage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function ProjectionsPage() {
   const [data, setData] = useState<ForecastData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -110,7 +110,7 @@ export default function ProjectionsPage() {
   function load(month?: string) {
     setLoading(true);
     const qs = month ? `?month=${month}` : "";
-    api.get<ForecastData>(`/api/projections/forecast${qs}`)
+    api.get<ForecastData>(`/projections/forecast${qs}`)
       .then(r => { setData(r.data); setSelectedMonth(r.data.month); setError(null); })
       .catch(() => setError("Failed to load forecast. Is the backend running?"))
       .finally(() => setLoading(false));
@@ -190,7 +190,7 @@ export default function ProjectionsPage() {
     lines.forEach(d => { const k = normDrug(d.drug); if (!m[k]) m[k] = { tp: 0, gp: 0 }; m[k].tp += d.tp; m[k].gp += d.gp; });
     return Object.entries(m)
       .filter(([, v]) => v.tp > 5000)
-      .map(([name, v]) => ({ name: name.length > 28 ? name.slice(0, 26) + "…" : name, pct: +(v.gp / v.tp * 100).toFixed(1) }))
+      .map(([name, v]) => ({ name: name.length > 28 ? name.slice(0, 26) + "â€¦" : name, pct: +(v.gp / v.tp * 100).toFixed(1) }))
       .sort((a, b) => b.pct - a.pct).slice(0, 10);
   }, [lines]);
 
@@ -248,7 +248,7 @@ export default function ProjectionsPage() {
   );
   if (loading || !data) return (
     <div style={{ background: BG, minHeight: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: MUTED, fontSize: 14 }}>
-      Loading forecast…
+      Loading forecastâ€¦
     </div>
   );
 
@@ -260,7 +260,7 @@ export default function ProjectionsPage() {
       <div style={{ background: "linear-gradient(135deg,#1e3a5f 0%,#0f1923 100%)", border: `1px solid ${BORDER}`, borderRadius: 12, padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700 }}>
-            <span style={{ color: BLUE }}>BlueBird</span> Infusion — {monthTitle(selectedMonth)} Forecast
+            <span style={{ color: BLUE }}>BlueBird</span> Infusion â€” {monthTitle(selectedMonth)} Forecast
           </h1>
           <div style={{ fontSize: 12, color: MUTED, marginTop: 4 }}>
             Revenue = TP recognized on Date Completed &bull; {lines.length} forecast lines
@@ -294,7 +294,7 @@ export default function ProjectionsPage() {
 
       {/* Revenue Build + Category Donut */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
-        <DCard title="Revenue Build — HEME vs IVIG by Line Type">
+        <DCard title="Revenue Build â€” HEME vs IVIG by Line Type">
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={buildChartData} margin={{ left: 10, right: 10, top: 8 }}>
               <XAxis dataKey="lineType" tick={tickStyle} />
@@ -321,11 +321,11 @@ export default function ProjectionsPage() {
       </div>
 
       {/* Weekly Schedule */}
-      <DCard title={`Weekly Completion Schedule — ${monthTitle(selectedMonth)}`} style={{ marginBottom: 24 }}>
+      <DCard title={`Weekly Completion Schedule â€” ${monthTitle(selectedMonth)}`} style={{ marginBottom: 24 }}>
         <div style={{ display: "grid", gridTemplateColumns: `repeat(${weeks.length},1fr)`, gap: 8 }}>
           {weekData.map(w => (
             <div key={w.l} style={{ background: "rgba(59,130,246,0.1)", border: `1px solid ${BORDER}`, borderRadius: 8, padding: 12, textAlign: "center" }}>
-              <div style={{ fontSize: 11, color: MUTED, marginBottom: 4 }}>{w.l} &bull; {w.s}–{w.e}</div>
+              <div style={{ fontSize: 11, color: MUTED, marginBottom: 4 }}>{w.l} &bull; {w.s}â€“{w.e}</div>
               <div style={{ fontSize: 18, fontWeight: 700, color: BLUE }}>{fmtM(w.tp)}</div>
               <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>{w.fills} forecast lines</div>
               {w.actualTP > 0 && <div style={{ fontSize: 11, color: GREEN, marginTop: 2 }}>{fmtM(w.actualTP)} actual</div>}
@@ -336,7 +336,7 @@ export default function ProjectionsPage() {
 
       {/* Payer Mix + TP by Rep */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
-        <DCard title="Payer Mix — TP Share">
+        <DCard title="Payer Mix â€” TP Share">
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
               <Pie data={payerData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={95} paddingAngle={2}>
@@ -393,7 +393,7 @@ export default function ProjectionsPage() {
       </div>
 
       {/* Forecast vs Actual */}
-      <DCard title={`Forecast vs Actual — ${monthTitle(selectedMonth)}`} style={{ marginBottom: 24 }}>
+      <DCard title={`Forecast vs Actual â€” ${monthTitle(selectedMonth)}`} style={{ marginBottom: 24 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={fvaCatData} margin={{ left: 10, right: 10, top: 16 }}>
@@ -459,7 +459,7 @@ export default function ProjectionsPage() {
       </DCard>
 
       {/* Revenue Build Table */}
-      <DCard title="Revenue Build — TP by Category & Line Type" style={{ marginBottom: 24 }}>
+      <DCard title="Revenue Build â€” TP by Category & Line Type" style={{ marginBottom: 24 }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr style={{ borderBottom: `2px solid ${BORDER}` }}>
@@ -518,9 +518,9 @@ export default function ProjectionsPage() {
         {[
           ["Revenue metric", "TP (Third Party payment) recognized on Date Completed."],
           ["1st Fills", "For each active patient+drug, the last Date Completed is rolled forward by Days Supply (adjusted to next business day). If that date falls within the selected month, it is a 1st Fill."],
-          ["2nd Fills", "If the 1st Fill date + Days Supply also lands in the selected month (Days Supply ≤ 28), a 2nd Fill line is added."],
-          ["Prior Month Postpones", "Patients with a dispense in month−2 whose expected fill (date + supply) was in month−1 but had no month−1 completion — carried into the current month as deferred revenue."],
-          ["Exclusions", "Patients marked Discontinued or Discharged are excluded. Categories OTHER and PRN (Days Supply ≤ 7) are excluded."],
+          ["2nd Fills", "If the 1st Fill date + Days Supply also lands in the selected month (Days Supply â‰¤ 28), a 2nd Fill line is added."],
+          ["Prior Month Postpones", "Patients with a dispense in monthâˆ’2 whose expected fill (date + supply) was in monthâˆ’1 but had no monthâˆ’1 completion â€” carried into the current month as deferred revenue."],
+          ["Exclusions", "Patients marked Discontinued or Discharged are excluded. Categories OTHER and PRN (Days Supply â‰¤ 7) are excluded."],
         ].map(([label, text]) => (
           <p key={label} style={{ fontSize: 13, color: MUTED, lineHeight: 1.6, marginBottom: 8 }}>
             <strong style={{ color: TEXT }}>{label}:</strong> {text}
@@ -530,3 +530,4 @@ export default function ProjectionsPage() {
     </div>
   );
 }
+

@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+﻿import { useCallback, useEffect, useState } from "react";
 import api from "../api";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 interface ShippingRecord {
   id: number;
   refill_id: number;
@@ -58,7 +58,7 @@ const SHIPPING_STATUSES = ["PENDING", "SHIPPED", "DELAYED", "CANCELLED"];
 const PHARMACIES = ["BLUEBIRD-FL", "BLUESKY-SC", "BLUEBIRD-SC", "BLUESKY-AL"];
 
 function fmt(v: number | null) {
-  if (v == null) return "—";
+  if (v == null) return "â€”";
   return v.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 }
 
@@ -72,7 +72,7 @@ function statusBadge(status: string | null) {
   }
 }
 
-// ── ShippingPage ──────────────────────────────────────────────────────────────
+// â”€â”€ ShippingPage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function ShippingPage() {
   const [records, setRecords] = useState<ShippingRecord[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -100,7 +100,7 @@ export default function ShippingPage() {
       if (location) params.location = location;
       if (status) params.status = status;
 
-      const { data } = await api.get("/api/shipping", { params });
+      const { data } = await api.get("/shipping", { params });
       setRecords(data.records);
       setSummary(data.summary);
       setError(null);
@@ -129,14 +129,14 @@ export default function ShippingPage() {
 
     setSaving(s => ({ ...s, [row.id]: true }));
     try {
-      const { data } = await api.patch<ShippingRecord>(`/api/shipping/${row.id}`, patch);
+      const { data } = await api.patch<ShippingRecord>(`/shipping/${row.id}`, patch);
       setRecords(prev => prev.map(r => r.id === row.id ? data : r));
       setPending(p => { const n = { ...p }; delete n[row.id]; return n; });
       setSaved(s => ({ ...s, [row.id]: true }));
       setTimeout(() => setSaved(s => { const n = { ...s }; delete n[row.id]; return n; }), 2000);
 
       if (patch.status === "SHIPPED") {
-        showToast(`${row.patient} marked as SHIPPED — refill status updated`);
+        showToast(`${row.patient} marked as SHIPPED â€” refill status updated`);
         fetchData(); // refresh summary counts
       }
     } catch {
@@ -204,7 +204,7 @@ export default function ShippingPage() {
         </label>
         <button onClick={fetchData}
           className="mt-4 px-3 py-1.5 text-sm border border-gray-300 rounded-md text-gray-600 hover:bg-gray-50">
-          ↻ Refresh
+          â†» Refresh
         </button>
         {(dateFrom || dateTo || location || status) && (
           <button onClick={() => { setDateFrom(""); setDateTo(""); setLocation(""); setStatus(""); }}
@@ -216,7 +216,7 @@ export default function ShippingPage() {
 
       {/* Table */}
       <div className="flex-1 overflow-auto px-6 py-4">
-        {loading && <div className="flex items-center justify-center h-40 text-gray-400">Loading…</div>}
+        {loading && <div className="flex items-center justify-center h-40 text-gray-400">Loadingâ€¦</div>}
         {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4 text-sm">{error}</div>}
 
         {!loading && !error && records.length === 0 && (
@@ -278,24 +278,24 @@ export default function ShippingPage() {
                       </td>
 
                       {/* Patient (auto) */}
-                      <td className="px-2 py-2 font-medium text-gray-800 whitespace-nowrap max-w-[140px] truncate">{row.patient ?? "—"}</td>
+                      <td className="px-2 py-2 font-medium text-gray-800 whitespace-nowrap max-w-[140px] truncate">{row.patient ?? "â€”"}</td>
 
                       {/* Medication (auto) */}
-                      <td className="px-2 py-2 text-gray-600 max-w-[160px] truncate" title={row.medication ?? ""}>{row.medication ?? "—"}</td>
+                      <td className="px-2 py-2 text-gray-600 max-w-[160px] truncate" title={row.medication ?? ""}>{row.medication ?? "â€”"}</td>
 
                       {/* Rx# */}
-                      <td className="px-2 py-2 text-gray-500 whitespace-nowrap text-xs">{row.rx_number ?? "—"}</td>
+                      <td className="px-2 py-2 text-gray-500 whitespace-nowrap text-xs">{row.rx_number ?? "â€”"}</td>
 
                       {/* Fill # */}
-                      <td className="px-2 py-2 text-gray-500 whitespace-nowrap text-center">{row.fill_number ?? "—"}</td>
+                      <td className="px-2 py-2 text-gray-500 whitespace-nowrap text-center">{row.fill_number ?? "â€”"}</td>
 
                       {/* Fill For Month */}
                       <td className="px-2 py-2 whitespace-nowrap">
-                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">{row.fill_for_month ?? "—"}</span>
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">{row.fill_for_month ?? "â€”"}</span>
                       </td>
 
                       {/* Location */}
-                      <td className="px-2 py-2 text-gray-500 text-xs whitespace-nowrap">{row.location ?? "—"}</td>
+                      <td className="px-2 py-2 text-gray-500 text-xs whitespace-nowrap">{row.location ?? "â€”"}</td>
 
                       {/* Patient Type */}
                       <td className="px-2 py-2 whitespace-nowrap">
@@ -303,7 +303,7 @@ export default function ShippingPage() {
                           row.patient_type === "IVIG" ? "bg-blue-100 text-blue-700"
                           : row.patient_type === "HEME" ? "bg-red-100 text-red-700"
                           : "bg-green-100 text-green-700"
-                        }`}>{row.patient_type ?? "—"}</span>
+                        }`}>{row.patient_type ?? "â€”"}</span>
                       </td>
 
                       {/* Qty (editable) */}
@@ -326,7 +326,7 @@ export default function ShippingPage() {
                         <select value={effective(row, "supply_list_needed") ?? ""}
                           onChange={e => change(row.id, "supply_list_needed", e.target.value || null)}
                           className="border border-gray-200 rounded px-1.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#4a7fd4] bg-white">
-                          <option value="">—</option>
+                          <option value="">â€”</option>
                           <option>Yes</option>
                           <option>No</option>
                         </select>
@@ -357,7 +357,7 @@ export default function ShippingPage() {
                       <td className="px-2 py-2">
                         <input type="text" value={effective(row, "confirmed_shipping_address") ?? ""}
                           onChange={e => change(row.id, "confirmed_shipping_address", e.target.value || null)}
-                          placeholder="Address…"
+                          placeholder="Addressâ€¦"
                           className="border border-gray-200 rounded px-1.5 py-1 text-xs w-40 focus:outline-none focus:ring-1 focus:ring-[#4a7fd4]" />
                       </td>
 
@@ -372,7 +372,7 @@ export default function ShippingPage() {
                         <select value={effective(row, "billing_type") ?? ""}
                           onChange={e => change(row.id, "billing_type", e.target.value || null)}
                           className="border border-gray-200 rounded px-1.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#4a7fd4] bg-white">
-                          <option value="">—</option>
+                          <option value="">â€”</option>
                           {BILLING_TYPES.map(b => <option key={b}>{b}</option>)}
                         </select>
                       </td>
@@ -381,7 +381,7 @@ export default function ShippingPage() {
                       <td className="px-2 py-2">
                         <input type="text" value={effective(row, "shipping_notes") ?? ""}
                           onChange={e => change(row.id, "shipping_notes", e.target.value || null)}
-                          placeholder="Notes…"
+                          placeholder="Notesâ€¦"
                           className="border border-gray-200 rounded px-1.5 py-1 text-xs w-32 focus:outline-none focus:ring-1 focus:ring-[#4a7fd4]" />
                       </td>
 
@@ -397,7 +397,7 @@ export default function ShippingPage() {
                       {/* Save */}
                       <td className="px-2 py-2 whitespace-nowrap">
                         {wasSaved ? (
-                          <span className="text-green-600 text-xs font-medium">Saved ✓</span>
+                          <span className="text-green-600 text-xs font-medium">Saved âœ“</span>
                         ) : (
                           <button onClick={() => save(row)} disabled={!dirty || isSaving}
                             className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
@@ -405,7 +405,7 @@ export default function ShippingPage() {
                               : isSaving ? "bg-[#4a7fd4] text-white opacity-60 cursor-wait"
                               : "bg-[#4a7fd4] text-white hover:bg-[#1a3a6b]"
                             }`}>
-                            {isSaving ? "Saving…" : "Save"}
+                            {isSaving ? "Savingâ€¦" : "Save"}
                           </button>
                         )}
                       </td>
@@ -424,7 +424,7 @@ export default function ShippingPage() {
   );
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Th({ children, right }: { children?: React.ReactNode; right?: boolean }) {
   return (
     <th className={`px-2 py-2 font-semibold whitespace-nowrap ${right ? "text-right" : "text-left"}`}>
@@ -449,3 +449,4 @@ function SummaryCard({ label, value, color }: { label: string; value: string | n
     </div>
   );
 }
+

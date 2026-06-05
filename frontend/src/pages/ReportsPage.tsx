@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import api from "../api";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 interface MonthlyTrend { month: string; tp: number; dispenses: number }
 interface CategoryBreakdown { category: string; tp: number; dispenses: number; pct: number }
 interface RepBreakdown { rep: string; tp: number; dispenses: number }
@@ -39,13 +39,13 @@ interface DispenseRow {
 interface DispensePage { total: number; page: number; page_size: number; items: DispenseRow[] }
 interface FilterOptions { reps: string[]; pharmacies: string[]; categories: string[] }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const CLS_COLOR: Record<string, string> = {
   IVIG: "#4a7fd4", HEME: "#e94560", ANC_BILLED: "#22c55e",
 };
 
 function fmt(v: number | null, decimals = 0) {
-  if (v == null) return "—";
+  if (v == null) return "â€”";
   return v.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: decimals });
 }
 function fmtK(v: number) {
@@ -60,7 +60,7 @@ function monthLabel(m: string) {
 
 const PAGE_SIZE = 50;
 
-// ── ReportsPage ───────────────────────────────────────────────────────────────
+// â”€â”€ ReportsPage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function ReportsPage() {
   const [filterOpts, setFilterOpts] = useState<FilterOptions>({ reps: [], pharmacies: [], categories: [] });
   const [dateFrom, setDateFrom] = useState("");
@@ -82,7 +82,7 @@ export default function ReportsPage() {
 
   // Load filter options once
   useEffect(() => {
-    api.get<FilterOptions>("/api/reports/filter-options").then(r => setFilterOpts(r.data));
+    api.get<FilterOptions>("/reports/filter-options").then(r => setFilterOpts(r.data));
   }, []);
 
   // Reload summary + table when any filter or page changes
@@ -90,8 +90,8 @@ export default function ReportsPage() {
     const params = buildParams();
     setLoading(true);
     Promise.all([
-      api.get<Summary>("/api/reports/summary", { params }),
-      api.get<DispensePage>("/api/reports/dispenses", { params: { ...params, page: currentPage, page_size: PAGE_SIZE } }),
+      api.get<Summary>("/reports/summary", { params }),
+      api.get<DispensePage>("/reports/dispenses", { params: { ...params, page: currentPage, page_size: PAGE_SIZE } }),
     ])
       .then(([s, d]) => { setSummary(s.data); setPage(d.data); setError(null); })
       .catch(() => setError("Failed to load reports. Is the backend running?"))
@@ -130,7 +130,7 @@ export default function ReportsPage() {
     try {
       const params = buildParams();
       const qs = new URLSearchParams(params).toString();
-      const url = `/api/reports/export${qs ? `?${qs}` : ""}`;
+      const url = `/reports/export${qs ? `?${qs}` : ""}`;
       const res = await fetch(url);
       const blob = await res.blob();
       const a = document.createElement("a");
@@ -193,7 +193,7 @@ export default function ReportsPage() {
           </label>
           <label className="flex flex-col gap-1 flex-1 min-w-[200px]">
             <span className="text-[10px] text-gray-400 uppercase font-medium">Search</span>
-            <input type="text" placeholder="Patient, drug, PTSN…" value={searchInput}
+            <input type="text" placeholder="Patient, drug, PTSNâ€¦" value={searchInput}
               onChange={e => handleSearchChange(e.target.value)}
               className="border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a7fd4]" />
           </label>
@@ -211,14 +211,14 @@ export default function ReportsPage() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
-              {exporting ? "Exporting…" : "Export CSV"}
+              {exporting ? "Exportingâ€¦" : "Export CSV"}
             </button>
           </div>
         </div>
       </div>
 
       {loading && !summary ? (
-        <div className="flex items-center justify-center h-48 text-gray-400">Loading…</div>
+        <div className="flex items-center justify-center h-48 text-gray-400">Loadingâ€¦</div>
       ) : summary && (
         <>
           {/* Summary cards */}
@@ -268,7 +268,7 @@ export default function ReportsPage() {
                     <div key={c.category}>
                       <div className="flex justify-between text-xs mb-0.5">
                         <span className="font-medium text-gray-700">{c.category}</span>
-                        <span className="text-gray-500">{fmtK(c.tp)} · {c.pct}%</span>
+                        <span className="text-gray-500">{fmtK(c.tp)} Â· {c.pct}%</span>
                       </div>
                       <div className="w-full bg-gray-100 rounded-full h-1.5">
                         <div className="h-1.5 rounded-full" style={{
@@ -306,16 +306,16 @@ export default function ReportsPage() {
               {page && totalPages > 1 && (
                 <div className="flex items-center gap-2 text-sm">
                   <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
-                    className="px-2 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40">‹</button>
+                    className="px-2 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40">â€¹</button>
                   <span className="text-gray-500 text-xs">Page {currentPage} of {totalPages}</span>
                   <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
-                    className="px-2 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40">›</button>
+                    className="px-2 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40">â€º</button>
                 </div>
               )}
             </div>
             <div className="overflow-x-auto">
               {tableLoading ? (
-                <div className="flex items-center justify-center h-32 text-gray-400 text-sm">Loading…</div>
+                <div className="flex items-center justify-center h-32 text-gray-400 text-sm">Loadingâ€¦</div>
               ) : (
                 <table className="min-w-full text-sm divide-y divide-gray-100">
                   <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide sticky top-0">
@@ -346,10 +346,10 @@ export default function ReportsPage() {
                       </tr>
                     ) : page?.items.map(row => (
                       <tr key={row.id} className="hover:bg-gray-50">
-                        <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.date_completed ?? "—"}</td>
-                        <td className="px-3 py-2 font-medium text-gray-800 max-w-[160px] truncate" title={row.patient ?? ""}>{row.patient ?? "—"}</td>
-                        <td className="px-3 py-2 font-mono text-xs text-gray-500">{row.ptsn ?? "—"}</td>
-                        <td className="px-3 py-2 text-gray-700 max-w-[200px] truncate" title={row.drug ?? ""}>{row.drug ?? "—"}</td>
+                        <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.date_completed ?? "â€”"}</td>
+                        <td className="px-3 py-2 font-medium text-gray-800 max-w-[160px] truncate" title={row.patient ?? ""}>{row.patient ?? "â€”"}</td>
+                        <td className="px-3 py-2 font-mono text-xs text-gray-500">{row.ptsn ?? "â€”"}</td>
+                        <td className="px-3 py-2 text-gray-700 max-w-[200px] truncate" title={row.drug ?? ""}>{row.drug ?? "â€”"}</td>
                         <td className="px-3 py-2">
                           {row.category ? (
                             <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${
@@ -358,18 +358,18 @@ export default function ReportsPage() {
                               : row.category === "ANC_BILLED" ? "bg-green-100 text-green-700"
                               : "bg-gray-100 text-gray-500"
                             }`}>{row.category}</span>
-                          ) : "—"}
+                          ) : "â€”"}
                         </td>
-                        <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{row.pharmacy ?? "—"}</td>
-                        <td className="px-3 py-2 text-xs text-gray-500 max-w-[140px] truncate" title={row.rep ?? ""}>{row.rep ?? "—"}</td>
-                        <td className="px-3 py-2 font-mono text-xs text-gray-500">{row.rx_number ?? "—"}</td>
-                        <td className="px-3 py-2 text-right text-gray-500">{row.refill_no ?? "—"}</td>
-                        <td className="px-3 py-2 text-right text-gray-500">{row.days_supply ?? "—"}</td>
-                        <td className="px-3 py-2 text-right text-gray-500">{row.disp_qty != null ? row.disp_qty.toFixed(1) : "—"}</td>
+                        <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{row.pharmacy ?? "â€”"}</td>
+                        <td className="px-3 py-2 text-xs text-gray-500 max-w-[140px] truncate" title={row.rep ?? ""}>{row.rep ?? "â€”"}</td>
+                        <td className="px-3 py-2 font-mono text-xs text-gray-500">{row.rx_number ?? "â€”"}</td>
+                        <td className="px-3 py-2 text-right text-gray-500">{row.refill_no ?? "â€”"}</td>
+                        <td className="px-3 py-2 text-right text-gray-500">{row.days_supply ?? "â€”"}</td>
+                        <td className="px-3 py-2 text-right text-gray-500">{row.disp_qty != null ? row.disp_qty.toFixed(1) : "â€”"}</td>
                         <td className="px-3 py-2 text-right font-semibold text-gray-800">{fmt(row.tp)}</td>
                         <td className="px-3 py-2 text-right text-gray-500">{fmt(row.gp)}</td>
-                        <td className="px-3 py-2 text-xs text-gray-500">{row.plan_type ?? "—"}</td>
-                        <td className="px-3 py-2 text-xs text-gray-500">{row.bill_month ?? "—"}</td>
+                        <td className="px-3 py-2 text-xs text-gray-500">{row.plan_type ?? "â€”"}</td>
+                        <td className="px-3 py-2 text-xs text-gray-500">{row.bill_month ?? "â€”"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -378,16 +378,16 @@ export default function ReportsPage() {
             </div>
             {page && totalPages > 1 && (
               <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
-                <span>Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, page.total)} of {page.total.toLocaleString()}</span>
+                <span>Showing {((currentPage - 1) * PAGE_SIZE) + 1}â€“{Math.min(currentPage * PAGE_SIZE, page.total)} of {page.total.toLocaleString()}</span>
                 <div className="flex items-center gap-1">
                   <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1}
-                    className="px-2 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40">«</button>
+                    className="px-2 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40">Â«</button>
                   <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
-                    className="px-2 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40">‹ Prev</button>
+                    className="px-2 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40">â€¹ Prev</button>
                   <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
-                    className="px-2 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40">Next ›</button>
+                    className="px-2 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40">Next â€º</button>
                   <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages}
-                    className="px-2 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40">»</button>
+                    className="px-2 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40">Â»</button>
                 </div>
               </div>
             )}
@@ -398,7 +398,7 @@ export default function ReportsPage() {
   );
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function StatCard({ label, value, color }: { label: string; value: string; color: string }) {
   const border: Record<string, string> = {
     navy: "border-l-[#1a3a6b]", blue: "border-l-[#4a7fd4]",
@@ -415,3 +415,4 @@ function StatCard({ label, value, color }: { label: string; value: string; color
     </div>
   );
 }
+

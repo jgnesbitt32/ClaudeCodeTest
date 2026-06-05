@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
 import { PHARMACIES, CATEGORIES } from "../types";
@@ -62,7 +62,7 @@ export default function PatientsPage() {
     if (pharmacy) params.pharmacy = pharmacy;
     if (category) params.category = category;
 
-    api.get<PatientSummary[]>("/api/patients", { params })
+    api.get<PatientSummary[]>("/patients", { params })
       .then(r => { setPatients(r.data); setError(null); })
       .catch(() => setError("Failed to load patients. Is the backend running?"))
       .finally(() => setLoading(false));
@@ -76,7 +76,7 @@ export default function PatientsPage() {
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search name or PTSN…"
+          placeholder="Search name or PTSNâ€¦"
           className="border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#4a7fd4] w-56"
         />
         <select value={pharmacy} onChange={e => setPharmacy(e.target.value)}
@@ -94,7 +94,7 @@ export default function PatientsPage() {
 
       {/* Table */}
       <div className="flex-1 overflow-auto px-6 py-4">
-        {loading && <div className="flex items-center justify-center h-40 text-gray-400">Loading…</div>}
+        {loading && <div className="flex items-center justify-center h-40 text-gray-400">Loadingâ€¦</div>}
         {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4 text-sm">{error}</div>}
 
         {!loading && !error && (
@@ -126,17 +126,17 @@ export default function PatientsPage() {
                   >
                     <td className="px-4 py-3 font-medium text-[#1a3a6b]">{p.patient}</td>
                     <td className="px-4 py-3 text-gray-500 font-mono text-xs">{p.ptsn}</td>
-                    <td className="px-4 py-3 text-gray-600 text-xs">{p.pharmacy ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-600 text-xs">{p.pharmacy ?? "â€”"}</td>
                     <td className="px-4 py-3">
                       {p.category ? (
                         <span className={`px-2 py-0.5 rounded text-xs font-medium ${categoryBadge(p.category)}`}>
                           {p.category}
                         </span>
-                      ) : "—"}
+                      ) : "â€”"}
                     </td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">{p.last_fill_date ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{p.last_fill_date ?? "â€”"}</td>
                     <td className={`px-4 py-3 text-xs font-medium ${statusColor(p.current_status)}`}>
-                      {p.current_status ?? "—"}
+                      {p.current_status ?? "â€”"}
                     </td>
                     <td className="px-4 py-3 text-center text-gray-600">{p.drug_count}</td>
                     <td className="px-4 py-3 text-right font-semibold text-gray-800">{fmt(p.total_tp)}</td>
@@ -150,3 +150,4 @@ export default function PatientsPage() {
     </div>
   );
 }
+
