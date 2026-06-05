@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import create_all
-from routers import refills
+from routers import refills, dashboard
 
 app = FastAPI(title="Osiris by BlueBird API")
 
@@ -15,6 +15,7 @@ app.add_middleware(
 )
 
 app.include_router(refills.router, prefix="/api")
+app.include_router(dashboard.router, prefix="/api")
 
 
 @app.on_event("startup")

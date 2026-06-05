@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
+import DashboardPage from "./pages/DashboardPage";
 import RefillsPage from "./pages/RefillsPage";
 
 export default function App() {
@@ -8,7 +9,7 @@ export default function App() {
       <Route path="/" element={<Layout />}>
         <Route index element={<Navigate to="/refills" replace />} />
         <Route path="refills" element={<RefillsPage />} />
-        <Route path="dashboard" element={<Placeholder title="Dashboard" />} />
+        <Route path="dashboard" element={<DashboardPage />} />
         <Route path="shipping" element={<Placeholder title="Shipping" />} />
         <Route path="patients" element={<Placeholder title="Patients" />} />
         <Route path="projections" element={<Placeholder title="Projections" />} />
