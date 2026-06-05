@@ -1,4 +1,5 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 const NAV_ITEMS = [
   { to: "/refills", label: "Refills", icon: ClipboardIcon },
@@ -10,6 +11,7 @@ const NAV_ITEMS = [
 ];
 
 export default function Layout() {
+  const { user, logout } = useAuth();
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
       {/* Sidebar */}
@@ -52,7 +54,16 @@ export default function Layout() {
         {/* Top bar */}
         <header className="flex items-center justify-between h-14 px-6 bg-white border-b border-gray-200 shrink-0">
           <PageTitle />
-          <span className="text-sm text-gray-500">John Garland</span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-600 font-medium">{user?.full_name}</span>
+            <span className="text-xs text-gray-400 uppercase tracking-wide bg-gray-100 px-2 py-0.5 rounded">{user?.role}</span>
+            <button
+              onClick={() => logout("manual")}
+              className="text-xs text-gray-400 hover:text-red-500 transition-colors ml-1 border border-gray-200 hover:border-red-300 px-2.5 py-1 rounded"
+            >
+              Sign out
+            </button>
+          </div>
         </header>
 
         {/* Content */}

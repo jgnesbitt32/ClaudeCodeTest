@@ -1,7 +1,30 @@
 import axios from "axios";
 import type { BucketCount, Refill, RefillPage, RefillPatch, RefillPatchResponse } from "./types";
+import { TOKEN_KEY } from "./context/AuthContext";
 
 const api = axios.create({ baseURL: "/api" });
+
+// Attach JWT to every request
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+// On 401, clear stored session and redirect to login
+api.interceptors.response.use(
+  res => res,
+  err => {
+    if (err.response?.status === 401) {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem("osiris_user");
+      window.location.href = "/login";
+    }
+    return Promise.reject(err);
+  }
+);
+
+export default api;
 
 export async function getRefills(filters: {
   bucket?: string;

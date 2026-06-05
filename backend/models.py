@@ -118,3 +118,27 @@ class MonthlyGoal(Base):
     period_month = Column(String, primary_key=True)
     cls = Column(String, primary_key=True)
     goal_tp = Column(Float, nullable=False)
+
+
+class User(Base):
+    __tablename__ = "user"
+
+    id = Column(Integer, primary_key=True)
+    username = Column(String, unique=True, nullable=False)
+    full_name = Column(String, nullable=False)
+    role = Column(String, nullable=False, default="coach")  # admin | coach | viewer
+    hashed_password = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_login = Column(DateTime, nullable=True)
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_log"
+
+    id = Column(Integer, primary_key=True)
+    username = Column(String, nullable=False)
+    action = Column(String, nullable=False)  # LOGIN | LOGOUT | LOGIN_FAILED
+    detail = Column(String, nullable=True)
+    ip_address = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

@@ -1,9 +1,10 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from database import create_all, engine
+from database import create_all, engine, get_db
 from routers import refills, dashboard, shipping, patients, projections, reports
+from routers.auth import get_current_user, router as auth_router, seed_default_users
 
 app = FastAPI(title="Osiris by BlueBird API")
 
@@ -15,12 +16,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(refills.router, prefix="/api")
-app.include_router(dashboard.router, prefix="/api")
-app.include_router(shipping.router, prefix="/api")
-app.include_router(patients.router, prefix="/api")
-app.include_router(projections.router, prefix="/api")
-app.include_router(reports.router, prefix="/api")
+# Auth routes are public (login doesn't require a token)
+app.include_router(auth_router, prefix="/api")
+
+# All other routes require a valid JWT
+_protected = {"dependencies": [Depends(get_current_user)]}
+app.include_router(refills.router,     prefix="/api", **_protected)
+app.include_router(dashboard.router,   prefix="/api", **_protected)
+app.include_router(shipping.router,    prefix="/api", **_protected)
+app.include_router(patients.router,    prefix="/api", **_protected)
+app.include_router(projections.router, prefix="/api", **_protected)
+app.include_router(reports.router,     prefix="/api", **_protected)
 
 
 @app.on_event("startup")
@@ -37,6 +43,12 @@ def startup():
         ]:
             conn.execute(text(ddl))
         conn.commit()
+    # Seed default users if none exist
+    db = next(get_db())
+    try:
+        seed_default_users(db)
+    finally:
+        db.close()
 
 
 @app.get("/api/health")

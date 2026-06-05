@@ -3,6 +3,27 @@ from typing import Optional
 from pydantic import BaseModel
 
 
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class UserOut(BaseModel):
+    id: int
+    username: str
+    full_name: str
+    role: str
+    last_login: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    user: UserOut
+
+
 class RefillOut(BaseModel):
     id: int
     ptsn: str
