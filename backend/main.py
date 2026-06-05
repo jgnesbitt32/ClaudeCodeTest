@@ -1,5 +1,7 @@
+import os
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from database import create_all, engine, get_db
@@ -54,3 +56,9 @@ def startup():
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+# Serve built React frontend (production only — skipped in local dev when dist/ doesn't exist)
+_dist = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
+if os.path.isdir(_dist):
+    app.mount("/", StaticFiles(directory=_dist, html=True), name="frontend")

@@ -37,7 +37,7 @@ COLUMN_MAP = {
     "MONTH": "bill_month",
 }
 
-PROTECTED_FIELDS = {"coach", "current_status", "notes", "ship_date", "follow_up_date"}
+PROTECTED_FIELDS = {"coach", "notes", "ship_date", "follow_up_date"}
 
 
 def safe_float(val):
@@ -147,9 +147,8 @@ def build_refill_worklist(db, df: pd.DataFrame) -> tuple[int, int]:
     df["_dc"] = pd.to_datetime(df["DATE COMPLETED"], errors="coerce")
 
     if latest_col:
-        # LATEST ROW values: "LATEST" (active), "SCHEDULED" (already scheduled),
-        # "OLD" (historical), "PRN" (as-needed), "DISCONTINUED"
-        filtered = df[df[latest_col].astype(str).str.strip().str.upper().isin(["LATEST", "SCHEDULED"])]
+        # Include LATEST, SCHEDULED, and DISCONTINUED so those statuses appear in the worklist
+        filtered = df[df[latest_col].astype(str).str.strip().str.upper().isin(["LATEST", "SCHEDULED", "DISCONTINUED"])]
     else:
         filtered = df
 
@@ -173,23 +172,42 @@ def build_refill_worklist(db, df: pd.DataFrame) -> tuple[int, int]:
         if not ptsn or not drug or dc is None:
             continue
 
+        # Derive initial status from Excel columns
+        latest_row_val = safe_str(row.get("LATEST ROW", "")) or ""
+        next_fill_status = safe_str(row.get("NEXT FILL STATUS", "")) or ""
+        patient_status = safe_str(row.get("PATIENT STATUS", "")) or ""
+        two_fills_val = safe_str(row.get("2X FILL IN SAME MONTH", "")) or ""
+
+        if patient_status.upper() == "DISCHARGED":
+            initial_status = "DISCHARGED"
+        elif latest_row_val.upper() == "DISCONTINUED" or next_fill_status.upper() == "DISCONTINUED":
+            initial_status = "DISCONTINUED"
+        elif latest_row_val.upper() == "SCHEDULED" or next_fill_status.upper() == "SCHEDULED":
+            initial_status = "SCHEDULED"
+        else:
+            initial_status = "NO ATTEMPTS"
+
+        two_fills = two_fills_val.upper() == "2 FILLS"
+
         next_call_date = compute_next_call_date(dc, days_supply)
         tp = safe_float(row.get("TP"))
 
         existing = db.query(Refill).filter(Refill.ptsn == ptsn, Refill.drug == drug).first()
 
         if existing:
-            # Refresh computed fields; never touch human-entered fields
+            # Always refresh computed + Excel-sourced fields
             existing.next_call_date = next_call_date
-            existing.bucket = compute_bucket(next_call_date, existing.current_status or "NO ATTEMPTS", today)
+            existing.current_status = initial_status
+            existing.bucket = compute_bucket(next_call_date, initial_status, today)
             existing.tp = tp
+            existing.two_fills = two_fills
             existing.patient = safe_str(row.get("PATIENT")) or existing.patient
             existing.ndc = safe_str(row.get("NDC")) or existing.ndc
             existing.category = cat or existing.category
             existing.pharmacy = safe_str(row.get("PHARMACY")) or existing.pharmacy
             updated += 1
         else:
-            bucket = compute_bucket(next_call_date, "NO ATTEMPTS", today)
+            bucket = compute_bucket(next_call_date, initial_status, today)
             refill = Refill(
                 ptsn=ptsn,
                 patient=safe_str(row.get("PATIENT")),
@@ -200,7 +218,8 @@ def build_refill_worklist(db, df: pd.DataFrame) -> tuple[int, int]:
                 tp=tp,
                 next_call_date=next_call_date,
                 bucket=bucket,
-                current_status="NO ATTEMPTS",
+                current_status=initial_status,
+                two_fills=two_fills,
             )
             db.add(refill)
             inserted += 1
