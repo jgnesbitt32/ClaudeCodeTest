@@ -62,7 +62,7 @@ class Refill(Base):
     shipping_records = relationship("Shipping", back_populates="refill")
 
     __table_args__ = (
-        UniqueConstraint("ptsn", "drug", name="uq_refill"),
+        UniqueConstraint("ptsn", name="uq_refill"),
     )
 
 

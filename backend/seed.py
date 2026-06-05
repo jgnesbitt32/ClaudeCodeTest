@@ -152,10 +152,16 @@ def build_refill_worklist(db, df: pd.DataFrame) -> tuple[int, int]:
     else:
         filtered = df
 
-    # Deduplicate: one row per (PTSN, DRUG) — keep most recent DATE COMPLETED
+    # One row per PTSN — pick primary drug: non-ancillary first, then highest TP
     filtered = filtered.copy()
-    idx = filtered.groupby(["PTSN", "DRUG"])["_dc"].idxmax()
-    latest_df = filtered.loc[idx]
+    filtered["_tp"] = pd.to_numeric(filtered.get("TP", pd.Series(dtype=float)), errors="coerce").fillna(0)
+
+    cat_priority = {"IVIG": 0, "HEME": 1, "ALPHA1": 2, "ANC_BILLED": 3, "ANC": 4}
+    filtered["_cat_rank"] = filtered["CATEGORY"].map(cat_priority).fillna(5)
+
+    # Sort so the best row per patient comes first, then keep first per PTSN
+    filtered = filtered.sort_values(["PTSN", "_cat_rank", "_tp"], ascending=[True, True, False])
+    latest_df = filtered.drop_duplicates(subset=["PTSN"], keep="first")
 
     inserted = updated = 0
 
@@ -192,7 +198,7 @@ def build_refill_worklist(db, df: pd.DataFrame) -> tuple[int, int]:
         next_call_date = compute_next_call_date(dc, days_supply)
         tp = safe_float(row.get("TP"))
 
-        existing = db.query(Refill).filter(Refill.ptsn == ptsn, Refill.drug == drug).first()
+        existing = db.query(Refill).filter(Refill.ptsn == ptsn).first()
 
         if existing:
             # Always refresh computed + Excel-sourced fields
