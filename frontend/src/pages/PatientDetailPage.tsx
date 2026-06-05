@@ -77,7 +77,7 @@ export default function PatientDetailPage() {
 
   useEffect(() => {
     if (!ptsn) return;
-    axios.get<PatientDetail>(`/api/patients/${ptsn}`)
+    api.get<PatientDetail>(`/api/patients/${ptsn}`)
       .then(r => { setData(r.data); setError(null); })
       .catch(() => setError("Patient not found."))
       .finally(() => setLoading(false));

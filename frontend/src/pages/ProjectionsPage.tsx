@@ -110,7 +110,7 @@ export default function ProjectionsPage() {
   function load(month?: string) {
     setLoading(true);
     const qs = month ? `?month=${month}` : "";
-    axios.get<ForecastData>(`/api/projections/forecast${qs}`)
+    api.get<ForecastData>(`/api/projections/forecast${qs}`)
       .then(r => { setData(r.data); setSelectedMonth(r.data.month); setError(null); })
       .catch(() => setError("Failed to load forecast. Is the backend running?"))
       .finally(() => setLoading(false));

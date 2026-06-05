@@ -62,7 +62,7 @@ export default function PatientsPage() {
     if (pharmacy) params.pharmacy = pharmacy;
     if (category) params.category = category;
 
-    axios.get<PatientSummary[]>("/api/patients", { params })
+    api.get<PatientSummary[]>("/api/patients", { params })
       .then(r => { setPatients(r.data); setError(null); })
       .catch(() => setError("Failed to load patients. Is the backend running?"))
       .finally(() => setLoading(false));

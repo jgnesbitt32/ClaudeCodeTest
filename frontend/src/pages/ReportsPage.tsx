@@ -82,7 +82,7 @@ export default function ReportsPage() {
 
   // Load filter options once
   useEffect(() => {
-    axios.get<FilterOptions>("/api/reports/filter-options").then(r => setFilterOpts(r.data));
+    api.get<FilterOptions>("/api/reports/filter-options").then(r => setFilterOpts(r.data));
   }, []);
 
   // Reload summary + table when any filter or page changes
@@ -90,8 +90,8 @@ export default function ReportsPage() {
     const params = buildParams();
     setLoading(true);
     Promise.all([
-      axios.get<Summary>("/api/reports/summary", { params }),
-      axios.get<DispensePage>("/api/reports/dispenses", { params: { ...params, page: currentPage, page_size: PAGE_SIZE } }),
+      api.get<Summary>("/api/reports/summary", { params }),
+      api.get<DispensePage>("/api/reports/dispenses", { params: { ...params, page: currentPage, page_size: PAGE_SIZE } }),
     ])
       .then(([s, d]) => { setSummary(s.data); setPage(d.data); setError(null); })
       .catch(() => setError("Failed to load reports. Is the backend running?"))

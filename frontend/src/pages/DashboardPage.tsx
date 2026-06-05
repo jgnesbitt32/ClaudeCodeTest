@@ -49,7 +49,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    axios.get<DashboardData>("/api/dashboard")
+    api.get<DashboardData>("/api/dashboard")
       .then(r => setData(r.data))
       .catch(() => setError("Failed to load dashboard. Is the backend running?"));
   }, []);
