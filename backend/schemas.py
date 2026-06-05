@@ -44,6 +44,13 @@ class BucketCount(BaseModel):
     count: int
 
 
+class RefillPage(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    items: list[RefillOut]
+
+
 class ShippingOut(BaseModel):
     id: int
     refill_id: int

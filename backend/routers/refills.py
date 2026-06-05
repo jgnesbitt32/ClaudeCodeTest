@@ -1,13 +1,13 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from database import get_db
 from models import Refill
-from schemas import BucketCount, RefillOut, RefillPatch, RefillPatchResponse
+from schemas import BucketCount, RefillOut, RefillPage, RefillPatch, RefillPatchResponse
 from business_logic import (
     compute_bucket,
     handle_scheduled_trigger,
@@ -47,13 +47,15 @@ def get_buckets(db: Session = Depends(get_db)):
     return result
 
 
-@router.get("", response_model=list[RefillOut])
+@router.get("", response_model=RefillPage)
 def get_refills(
     bucket: Optional[str] = None,
     coach: Optional[str] = None,
     pharmacy: Optional[str] = None,
     category: Optional[str] = None,
     search: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
     q = db.query(Refill)
@@ -72,9 +74,14 @@ def get_refills(
             (Refill.patient.ilike(term)) | (Refill.drug.ilike(term))
         )
 
-    refills = q.all()
-    refills.sort(key=_sort_key)
-    return refills
+    all_rows = q.all()
+    all_rows.sort(key=_sort_key)
+
+    total = len(all_rows)
+    start = (page - 1) * page_size
+    items = all_rows[start : start + page_size]
+
+    return RefillPage(total=total, page=page, page_size=page_size, items=items)
 
 
 @router.patch("/{refill_id}", response_model=RefillPatchResponse)

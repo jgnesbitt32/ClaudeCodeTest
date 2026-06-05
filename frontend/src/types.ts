@@ -23,6 +23,13 @@ export interface BucketCount {
   count: number;
 }
 
+export interface RefillPage {
+  total: number;
+  page: number;
+  page_size: number;
+  items: Refill[];
+}
+
 export interface RefillPatch {
   coach?: string | null;
   current_status?: string | null;
