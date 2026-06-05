@@ -3,6 +3,7 @@ import Layout from "./components/Layout";
 import DashboardPage from "./pages/DashboardPage";
 import PatientDetailPage from "./pages/PatientDetailPage";
 import PatientsPage from "./pages/PatientsPage";
+import ProjectionsPage from "./pages/ProjectionsPage";
 import RefillsPage from "./pages/RefillsPage";
 import ShippingPage from "./pages/ShippingPage";
 
@@ -16,7 +17,7 @@ export default function App() {
         <Route path="shipping" element={<ShippingPage />} />
         <Route path="patients" element={<PatientsPage />} />
         <Route path="patients/:ptsn" element={<PatientDetailPage />} />
-        <Route path="projections" element={<Placeholder title="Projections" />} />
+        <Route path="projections" element={<ProjectionsPage />} />
         <Route path="reports" element={<Placeholder title="Reports" />} />
       </Route>
     </Routes>
