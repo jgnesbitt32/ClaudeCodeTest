@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
 import DashboardPage from "./pages/DashboardPage";
 import RefillsPage from "./pages/RefillsPage";
+import ShippingPage from "./pages/ShippingPage";
 
 export default function App() {
   return (
@@ -10,7 +11,7 @@ export default function App() {
         <Route index element={<Navigate to="/refills" replace />} />
         <Route path="refills" element={<RefillsPage />} />
         <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="shipping" element={<Placeholder title="Shipping" />} />
+        <Route path="shipping" element={<ShippingPage />} />
         <Route path="patients" element={<Placeholder title="Patients" />} />
         <Route path="projections" element={<Placeholder title="Projections" />} />
         <Route path="reports" element={<Placeholder title="Reports" />} />
