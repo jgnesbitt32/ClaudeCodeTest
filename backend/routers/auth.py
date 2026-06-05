@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import AuditLog, User
-from schemas import LoginRequest, Token, UserOut
+from schemas import ChangePasswordRequest, LoginRequest, Token, UserOut
 
 SECRET_KEY = os.environ.get("JWT_SECRET", "osiris-bluebird-dev-secret-change-in-production-2026")
 ALGORITHM = "HS256"
@@ -105,3 +105,22 @@ def logout(current_user: User = Depends(get_current_user), db: Session = Depends
     db.add(AuditLog(username=current_user.username, action="LOGOUT", detail="User logged out"))
     db.commit()
     return {"message": "Logged out"}
+
+
+@router.post("/change-password")
+def change_password(
+    payload: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not verify_password(payload.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if len(payload.new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+    if payload.new_password == payload.current_password:
+        raise HTTPException(status_code=400, detail="New password must differ from current password")
+
+    current_user.hashed_password = get_password_hash(payload.new_password)
+    db.add(AuditLog(username=current_user.username, action="PASSWORD_CHANGED", detail="Password updated"))
+    db.commit()
+    return {"message": "Password changed successfully"}
