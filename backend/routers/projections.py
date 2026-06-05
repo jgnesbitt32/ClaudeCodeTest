@@ -14,7 +14,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -344,6 +344,199 @@ def _recompute_weeks_with_cls_actuals(
             missed=missed,
         ))
     return rows
+
+
+@router.get("/forecast")
+def get_forecast(month: Optional[str] = None, db: Session = Depends(get_db)):
+    """
+    Returns individual forecast lines (1st Fill, 2nd Fill, Prior Month Postpone)
+    and actual dispenses for the selected month — powers the dark-theme dashboard.
+
+    fillDate = date_completed + days_supply, pushed to next business day.
+    Postpones: patients whose prior-prior-month fill was expected in prior month
+               but who had no prior-month dispense.
+    """
+    today = date.today()
+    if not month:
+        month = today.strftime("%Y-%m")
+
+    year, month_num = map(int, month.split("-"))
+    _, last_day = monthrange(year, month_num)
+    month_start = date(year, month_num, 1)
+    month_end = date(year, month_num, last_day)
+
+    def next_bday(d: date) -> date:
+        while d.weekday() >= 5:
+            d += timedelta(days=1)
+        return d
+
+    ACTIVE_CATS = ["IVIG", "HEME", "ANC_BILLED"]
+    EX_STATUSES = {"DISCONTINUED", "DISCHARGED"}
+
+    # Available months
+    disp_months = db.query(func.strftime("%Y-%m", Dispense.date_completed)).distinct().all()
+    rfill_months = db.query(func.strftime("%Y-%m", Refill.next_call_date)).distinct().all()
+    available = sorted(set(m[0] for m in disp_months + rfill_months if m[0]), reverse=True)
+
+    # Refill statuses for exclusion check
+    refill_statuses = {
+        (r.ptsn, r.drug): r.current_status
+        for r in db.query(Refill.ptsn, Refill.drug, Refill.current_status).all()
+    }
+
+    # Latest dispense per (ptsn, drug) strictly before month_start
+    subq = (
+        db.query(
+            Dispense.ptsn,
+            Dispense.drug,
+            func.max(Dispense.date_completed).label("max_date"),
+        )
+        .filter(
+            Dispense.date_completed < month_start,
+            Dispense.category.in_(ACTIVE_CATS),
+            Dispense.days_supply > 7,
+        )
+        .group_by(Dispense.ptsn, Dispense.drug)
+        .subquery()
+    )
+    latest = (
+        db.query(Dispense)
+        .join(subq, and_(
+            Dispense.ptsn == subq.c.ptsn,
+            Dispense.drug == subq.c.drug,
+            Dispense.date_completed == subq.c.max_date,
+        ))
+        .all()
+    )
+
+    def _to_line(d, line_type, fill_date):
+        return {
+            "cat": d.category,
+            "patient": d.patient,
+            "ptsn": d.ptsn,
+            "drug": d.drug,
+            "ndc": d.ndc,
+            "tp": float(d.tp or 0),
+            "gp": float(d.gp or 0),
+            "acq": float(d.acq_cost or 0),
+            "copay": float(d.primary_copay or 0),
+            "line_type": line_type,
+            "date_completed": d.date_completed.isoformat() if d.date_completed else None,
+            "fill_date": fill_date.isoformat(),
+            "rep": d.rep,
+            "plan_type": d.plan_type,
+            "pharmacy": d.pharmacy,
+            "days_supply": int(d.days_supply) if d.days_supply else 0,
+        }
+
+    forecast_lines = []
+    seen_keys = set()
+
+    for d in latest:
+        key = (d.ptsn, d.drug)
+        if refill_statuses.get(key, "") in EX_STATUSES:
+            continue
+        if not d.date_completed or not d.days_supply:
+            continue
+
+        fill1 = next_bday(d.date_completed + timedelta(days=int(d.days_supply)))
+        if month_start <= fill1 <= month_end:
+            forecast_lines.append(_to_line(d, "1st Fill", fill1))
+            seen_keys.add(key)
+
+            # 2nd fill
+            if int(d.days_supply) <= 28:
+                fill2 = next_bday(fill1 + timedelta(days=int(d.days_supply)))
+                if month_start <= fill2 <= month_end:
+                    forecast_lines.append(_to_line(d, "2nd Fill", fill2))
+
+    # Prior-month postpones
+    prior_end = month_start - timedelta(days=1)
+    prior_start = date(prior_end.year, prior_end.month, 1)
+    pp_end = prior_start - timedelta(days=1)
+    pp_start = date(pp_end.year, pp_end.month, 1)
+    prior_month_name = prior_end.strftime("%B")  # e.g. "May"
+
+    pp_subq = (
+        db.query(
+            Dispense.ptsn, Dispense.drug,
+            func.max(Dispense.date_completed).label("max_date"),
+        )
+        .filter(
+            Dispense.date_completed >= pp_start,
+            Dispense.date_completed <= pp_end,
+            Dispense.category.in_(ACTIVE_CATS),
+            Dispense.days_supply > 7,
+        )
+        .group_by(Dispense.ptsn, Dispense.drug)
+        .subquery()
+    )
+    pp_latest = (
+        db.query(Dispense)
+        .join(pp_subq, and_(
+            Dispense.ptsn == pp_subq.c.ptsn,
+            Dispense.drug == pp_subq.c.drug,
+            Dispense.date_completed == pp_subq.c.max_date,
+        ))
+        .all()
+    )
+
+    prior_fills = set(
+        (d.ptsn, d.drug)
+        for d in db.query(Dispense.ptsn, Dispense.drug)
+        .filter(
+            Dispense.date_completed >= prior_start,
+            Dispense.date_completed <= prior_end,
+        )
+        .all()
+    )
+
+    for d in pp_latest:
+        key = (d.ptsn, d.drug)
+        if key in prior_fills or key in seen_keys:
+            continue
+        if refill_statuses.get(key, "") in EX_STATUSES:
+            continue
+        if not d.date_completed or not d.days_supply:
+            continue
+
+        expected = next_bday(d.date_completed + timedelta(days=int(d.days_supply)))
+        if prior_start <= expected <= prior_end:
+            forecast_lines.append(_to_line(d, f"{prior_month_name} Postpone", month_start))
+            seen_keys.add(key)
+
+    # Actuals
+    actual_rows = (
+        db.query(Dispense)
+        .filter(
+            Dispense.date_completed >= month_start,
+            Dispense.date_completed <= month_end,
+            Dispense.category.in_(ACTIVE_CATS),
+        )
+        .all()
+    )
+    actuals = [
+        {
+            "cat": d.category,
+            "patient": d.patient,
+            "ptsn": d.ptsn,
+            "drug": d.drug,
+            "tp": float(d.tp or 0),
+            "gp": float(d.gp or 0),
+            "date_completed": d.date_completed.isoformat() if d.date_completed else None,
+            "rep": d.rep,
+            "plan_type": d.plan_type,
+            "pharmacy": d.pharmacy,
+        }
+        for d in actual_rows
+    ]
+
+    return {
+        "month": month,
+        "available_months": available,
+        "forecast_lines": forecast_lines,
+        "actuals": actuals,
+    }
 
 
 @router.post("/goals")
