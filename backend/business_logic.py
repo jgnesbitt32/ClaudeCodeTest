@@ -22,9 +22,15 @@ def compute_next_call_date(date_completed: date, days_supply: int) -> date:
 def compute_bucket(next_call_date: date, current_status: str, today: date | None = None) -> str:
     if today is None:
         today = date.today()
-    if current_status in TERMINAL_STATUSES:
+    # DISCHARGED / DISCONTINUED always lock to their own bucket
+    if current_status in ("DISCHARGED", "DISCONTINUED"):
         return current_status
-    if next_call_date < today:
+    # SCHEDULED locks to SCHEDULED
+    if current_status == "SCHEDULED":
+        return current_status
+    # All other statuses (including SHIPPED) — bucket follows the next call date
+    # so SHIPPED patients reappear in the worklist when their next fill is due
+    if not next_call_date or next_call_date < today:
         return "PAST DUE"
     if next_call_date <= today + timedelta(days=7):
         return "THIS WEEK"
