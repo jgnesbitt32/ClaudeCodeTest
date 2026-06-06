@@ -542,170 +542,123 @@ def get_forecast(month: Optional[str] = None, db: Session = Depends(get_db)):
 @router.get("/annual")
 def get_annual_forecast(db: Session = Depends(get_db)):
     """
-    12-month rolling revenue forecast using actual per-patient monthly TP.
+    Current-month revenue forecast.
 
-    Each active patient's expected monthly revenue = sum of TP across all their
-    dispenses in their most recent complete month (captures all vials, not just one).
-    Fills are classified:
-      new_start  — patient has ≤ 2 total dispenses (just started)
-      2nd_fill   — patient.two_fills == True
-      1st_fill   — all others
-    Roll each patient's next_call_date forward by days_supply for 12 months.
+    Uses the refill table as primary source (one row per active patient),
+    joined to the latest dispense for that patient's primary category.
+    ship_date = date_completed + days_supply
+    Revenue = SUM(tp) of all vials in patient+category's most recent complete month.
     """
     from collections import defaultdict
-    from calendar import monthrange
+    from sqlalchemy import text
 
     today = date.today()
     current_ym = today.strftime("%Y-%m")
-    horizon_months = 12
-    # Build list of future month strings
-    future_months = []
-    y, m = today.year, today.month
-    for _ in range(horizon_months):
-        future_months.append(f"{y:04d}-{m:02d}")
-        m += 1
-        if m > 12:
-            m = 1
-            y += 1
+    year, month_num = map(int, current_ym.split("-"))
+    _, last_day = monthrange(year, month_num)
+    month_start = date(year, month_num, 1)
+    month_end   = date(year, month_num, last_day)
 
-    # ── Per-patient most-recent complete-month TP ─────────────────────────────
-    rows = (
-        db.query(
-            Dispense.ptsn,
-            func.strftime("%Y-%m", Dispense.date_completed).label("ym"),
-            func.sum(Dispense.tp).label("total_tp"),
-            func.count(Dispense.id).label("fill_count"),
-        )
-        .filter(Dispense.tp > 0, Dispense.days_supply > 7)
-        .group_by(Dispense.ptsn, func.strftime("%Y-%m", Dispense.date_completed))
-        .all()
-    )
+    ACTIVE_CATS = ["IVIG", "HEME", "ANC_BILLED"]
 
-    # ptsn -> list of (ym, total_tp)
-    by_ptsn: dict[str, list] = defaultdict(list)
-    for ptsn, ym, tp, cnt in rows:
+    # Per-patient-per-category monthly TP (most recent complete month before current)
+    tp_rows = db.execute(text("""
+        SELECT ptsn, category, strftime('%Y-%m', date_completed) ym, SUM(tp) total_tp
+        FROM dispense
+        WHERE tp > 0 AND days_supply > 7
+        GROUP BY ptsn, category, strftime('%Y-%m', date_completed)
+    """)).fetchall()
+
+    cat_monthly: dict = defaultdict(list)
+    for ptsn, cat, ym, tp in tp_rows:
         if ym:
-            by_ptsn[ptsn].append((ym, float(tp or 0)))
+            cat_monthly[(ptsn, cat)].append((ym, float(tp or 0)))
 
-    # Pick most recent complete month (exclude current partial month)
-    patient_monthly_tp: dict[str, float] = {}
-    for ptsn, months in by_ptsn.items():
-        past = sorted([(ym, tp) for ym, tp in months if ym < current_ym], reverse=True)
-        if past:
-            patient_monthly_tp[ptsn] = past[0][1]
-
-    # Total historical dispense count per patient (to identify new starts)
-    dispense_counts = dict(
-        db.query(Dispense.ptsn, func.count(Dispense.id))
-        .group_by(Dispense.ptsn)
-        .all()
-    )
-
-    # ── Latest days_supply per patient from dispense ─────────────────────────
-    ds_subq = (
-        db.query(
-            Dispense.ptsn,
-            func.max(Dispense.date_completed).label("max_date"),
+    def best_tp(ptsn: str, cat: str) -> float:
+        months = sorted(
+            [(ym, tp) for ym, tp in cat_monthly[(ptsn, cat)] if ym < current_ym],
+            reverse=True,
         )
-        .filter(Dispense.days_supply > 7)
-        .group_by(Dispense.ptsn)
-        .subquery()
-    )
-    ds_rows = (
-        db.query(Dispense.ptsn, Dispense.days_supply)
-        .join(ds_subq, and_(
-            Dispense.ptsn == ds_subq.c.ptsn,
-            Dispense.date_completed == ds_subq.c.max_date,
-        ))
-        .all()
-    )
-    patient_ds: dict[str, int] = {ptsn: int(ds or 28) for ptsn, ds in ds_rows}
+        return months[0][1] if months else 0.0
 
-    # ── Active patients ───────────────────────────────────────────────────────
-    active = (
-        db.query(Refill)
-        .filter(Refill.current_status.notin_(["DISCHARGED", "DISCONTINUED"]))
-        .all()
-    )
+    # Active patients with latest dispense per their primary refill category.
+    # Uses refill table as primary driver (matches analysis script logic exactly).
+    rows = db.execute(text("""
+        SELECT r.ptsn, r.category, r.current_status, d.date_completed, d.days_supply
+        FROM refill r
+        INNER JOIN (
+            SELECT ptsn, category, MAX(date_completed) max_date
+            FROM dispense WHERE days_supply > 7
+            GROUP BY ptsn, category
+        ) lx ON r.ptsn = lx.ptsn AND r.category = lx.category
+        INNER JOIN dispense d
+            ON d.ptsn = r.ptsn AND d.category = r.category
+            AND d.date_completed = lx.max_date AND d.days_supply > 7
+        WHERE r.current_status NOT IN ('DISCHARGED','DISCONTINUED')
+    """)).fetchall()
 
-    # result[ym][cat][fill_type] = total_tp
-    result: dict = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
-    patient_counts: dict = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+    fills: dict = {cat: {"1st_fill": 0.0, "2nd_fill": 0.0, "new_start": 0.0,
+                         "total": 0.0, "pts_1st": 0, "pts_2nd": 0, "pts_new": 0}
+                   for cat in ACTIVE_CATS}
 
-    for r in active:
-        cat = (r.category or "").upper()
-        if cat not in ("IVIG", "HEME", "ANC_BILLED"):
+    for ptsn, cat, status, dc_str, ds_val in rows:
+        cat = (cat or "").upper()
+        if cat not in ACTIVE_CATS:
             continue
-        if not r.next_call_date:
+        if not dc_str or not ds_val:
             continue
-
-        monthly_tp = patient_monthly_tp.get(r.ptsn) or float(r.tp or 0)
-        if not monthly_tp:
-            continue
-
-        ds = patient_ds.get(r.ptsn, 28)
+        ds = int(ds_val)
         if ds <= 7:
             continue
 
-        total_fills = dispense_counts.get(r.ptsn, 0)
-        if total_fills <= 2:
-            fill_type = "new_start"
-        elif r.two_fills:
-            fill_type = "2nd_fill"
-        else:
-            fill_type = "1st_fill"
+        dc = date.fromisoformat(dc_str)
+        ship1 = dc + timedelta(days=ds)
 
-        # Roll forward
-        ncd = r.next_call_date
-        projected_months = set()
-        for _ in range(14):  # max 14 fill cycles to cover 12 months
-            ym = ncd.strftime("%Y-%m")
-            if ym > future_months[-1]:
-                break
-            if ym >= current_ym and ym not in projected_months:
-                result[ym][cat][fill_type] += monthly_tp
-                patient_counts[ym][cat][fill_type] += 1
-                projected_months.add(ym)
-                # For two_fills patients project the second fill in the same month
-                if r.two_fills and fill_type != "new_start":
-                    second_ncd = ncd + timedelta(days=ds)
-                    ym2 = second_ncd.strftime("%Y-%m")
-                    if ym2 == ym and ym2 not in {f"{ym}_2"}:
-                        result[ym][cat]["2nd_fill"] += monthly_tp
-                        patient_counts[ym][cat]["2nd_fill"] += 1
-            ncd = ncd + timedelta(days=ds)
+        if not (month_start <= ship1 <= month_end):
+            continue
 
-    # ── Build response ────────────────────────────────────────────────────────
-    months_out = []
-    for ym in future_months:
-        entry: dict = {"month": ym, "categories": {}}
-        for cat in ("IVIG", "HEME", "ANC_BILLED"):
-            entry["categories"][cat] = {
-                "1st_fill":  round(result[ym][cat].get("1st_fill", 0)),
-                "2nd_fill":  round(result[ym][cat].get("2nd_fill", 0)),
-                "new_start": round(result[ym][cat].get("new_start", 0)),
-                "total":     round(sum(result[ym][cat].values())),
-                "pts_1st":   patient_counts[ym][cat].get("1st_fill", 0),
-                "pts_2nd":   patient_counts[ym][cat].get("2nd_fill", 0),
-                "pts_new":   patient_counts[ym][cat].get("new_start", 0),
-            }
-        entry["total"] = round(sum(
-            entry["categories"][c]["total"] for c in entry["categories"]
-        ))
-        months_out.append(entry)
+        monthly_tp = best_tp(ptsn, cat)
+        if not monthly_tp:
+            row = db.execute(text(
+                "SELECT SUM(tp) FROM dispense WHERE ptsn=:p AND category=:c AND date_completed=:d"
+            ), {"p": ptsn, "c": cat, "d": dc_str}).fetchone()
+            monthly_tp = float(row[0] or 0) if row else 0.0
+        if not monthly_tp:
+            continue
 
-    # Annual totals
+        fills[cat]["1st_fill"] += monthly_tp
+        fills[cat]["pts_1st"] += 1
+
+        if ds <= 28:
+            ship2 = ship1 + timedelta(days=ds)
+            if month_start <= ship2 <= month_end:
+                fills[cat]["2nd_fill"] += monthly_tp
+                fills[cat]["pts_2nd"] += 1
+
+    for cat in ACTIVE_CATS:
+        fills[cat]["total"] = round(fills[cat]["1st_fill"] + fills[cat]["2nd_fill"])
+        fills[cat]["1st_fill"] = round(fills[cat]["1st_fill"])
+        fills[cat]["2nd_fill"] = round(fills[cat]["2nd_fill"])
+
+    grand_total = sum(fills[c]["total"] for c in ACTIVE_CATS)
+
+    cur_month_entry = {
+        "month": current_ym,
+        "categories": fills,
+        "total": grand_total,
+    }
+
     annual: dict = {}
-    for cat in ("IVIG", "HEME", "ANC_BILLED"):
+    for cat in ACTIVE_CATS:
         annual[cat] = {
-            "1st_fill":  round(sum(result[ym][cat].get("1st_fill", 0) for ym in future_months)),
-            "2nd_fill":  round(sum(result[ym][cat].get("2nd_fill", 0) for ym in future_months)),
-            "new_start": round(sum(result[ym][cat].get("new_start", 0) for ym in future_months)),
+            "1st_fill": fills[cat]["1st_fill"],
+            "2nd_fill": fills[cat]["2nd_fill"],
+            "new_start": 0,
+            "total": fills[cat]["total"],
         }
-        annual[cat]["total"] = sum(annual[cat].values())
 
     return {
-        "months": months_out,
+        "months": [cur_month_entry],
         "annual": annual,
         "generated": today.isoformat(),
     }
