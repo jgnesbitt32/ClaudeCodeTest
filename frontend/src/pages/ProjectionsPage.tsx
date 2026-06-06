@@ -39,6 +39,23 @@ interface AnnualData {
   generated: string;
 }
 
+interface DetailCat {
+  goal: number;
+  actual: number; actual_pts: number;
+  scheduled: number; scheduled_pts: number;
+  opps_by_week: number[]; opps_pts_by_week: number[];
+  second_fill: number; second_pts: number;
+  new_starts: number; new_starts_pts: number;
+  postpones: number; postpone_pts: number;
+  projection: number; gap: number;
+}
+interface DetailData {
+  month: string; month_label: string; week_labels: string[];
+  categories: Record<string, DetailCat>;
+  combined: { goal: number; actual: number; scheduled: number; opps_by_week: number[]; second_fill: number; new_starts: number; postpones: number; projection: number; gap: number; };
+  generated: string;
+}
+
 // Excel targets (monthly) for reference
 const EXCEL_TARGETS: Record<string, { first: number; second: number; new_start: number }> = {
   IVIG: { first: 1_520_000, second: 210_000, new_start: 250_000 },
@@ -126,12 +143,12 @@ export default function ProjectionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [clock, setClock] = useState(new Date());
   const [annualData, setAnnualData] = useState<AnnualData | null>(null);
+  const [detailData, setDetailData] = useState<DetailData | null>(null);
 
   useEffect(() => { const t = setInterval(() => setClock(new Date()), 1000); return () => clearInterval(t); }, []);
   useEffect(() => {
-    api.get<AnnualData>("/projections/annual")
-      .then(r => setAnnualData(r.data))
-      .catch(() => {});
+    api.get<AnnualData>("/projections/annual").then(r => setAnnualData(r.data)).catch(() => {});
+    api.get<DetailData>("/projections/detail").then(r => setDetailData(r.data)).catch(() => {});
   }, []);
 
   function load(month?: string) {
@@ -311,71 +328,161 @@ export default function ProjectionsPage() {
       </div>
 
 
-      {/* June Forecast Section */}
-      {annualData && (() => {
-        const now = new Date().toISOString().slice(0, 7);
-        const cur = annualData.months.find(m => m.month === now) ?? annualData.months[0];
-        const monthLabel = new Date(cur.month + "-02").toLocaleString("en-US", { month: "long", year: "numeric" });
+      {/* Excel-style Projection Summary */}
+      {detailData && (() => {
+        const dd = detailData;
+        const SHOW = ["IVIG", "HEME", "ANC_BILLED"] as const;
+        const CAT_LABEL: Record<string, string> = { IVIG: "IVIG", HEME: "HEME", ANC_BILLED: "Alpha-1" };
+        const COL: Record<string, string> = { IVIG: BLUE, HEME: PURPLE, ANC_BILLED: AMBER };
+        const nw = dd.week_labels.length;
+
+        function cv(n: number, color?: string, bold?: boolean) {
+          const c = color ?? (n === 0 ? MUTED : TEXT);
+          const display = n === 0 ? "—" : fmtM(n);
+          return <td style={{ padding: "7px 12px", textAlign: "right", color: c, fontWeight: bold ? 700 : 400, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{display}</td>;
+        }
+        function sectionRow(label: string) {
+          return (
+            <tr key={label} style={{ background: "rgba(255,255,255,0.03)" }}>
+              <td colSpan={SHOW.length + 2} style={{ padding: "6px 12px", fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.8px", borderTop: `1px solid ${BORDER}` }}>{label}</td>
+            </tr>
+          );
+        }
+
+        const projPct = dd.combined.goal > 0 ? (dd.combined.projection / dd.combined.goal * 100) : 0;
+        const barColor = projPct >= 90 ? GREEN : projPct >= 70 ? AMBER : RED;
+
         return (
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ marginBottom: 12 }}>
-              <h2 style={{ fontSize: 16, fontWeight: 700, color: TEXT, margin: 0 }}>{monthLabel} Revenue Forecast</h2>
-              <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>Projected from each patient&apos;s actual monthly TP and next call date</div>
+          <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 20, marginBottom: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+              <div>
+                <h2 style={{ fontSize: 16, fontWeight: 700, color: TEXT, margin: 0 }}>{dd.month_label} Projection Summary</h2>
+                <div style={{ fontSize: 11, color: MUTED, marginTop: 3 }}>Based on flight status — call date = ship date − 7 days</div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 24, fontWeight: 700, color: barColor, fontVariantNumeric: "tabular-nums" }}>{fmtM(dd.combined.projection)}</div>
+                <div style={{ fontSize: 11, color: MUTED }}>Combined projection &bull; {projPct.toFixed(0)}% of goal</div>
+                <div style={{ height: 4, background: BORDER, borderRadius: 2, marginTop: 6, width: 160 }}>
+                  <div style={{ height: "100%", width: `${Math.min(projPct, 100)}%`, background: barColor, borderRadius: 2 }} />
+                </div>
+              </div>
             </div>
 
-            {/* IVIG + HEME side-by-side cards */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
-              {(["IVIG", "HEME"] as const).map(cat => {
-                const d = cur.categories[cat];
-                const tgt = EXCEL_TARGETS[cat];
-                const tgtTotal = tgt ? tgt.first + tgt.second + tgt.new_start : 0;
-                const pct = tgtTotal > 0 ? ((d?.total ?? 0) / tgtTotal * 100) : 0;
-                const col = cat === "IVIG" ? BLUE : PURPLE;
-                return (
-                  <div key={cat} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 20 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                      <span style={{ fontSize: 15, fontWeight: 700, color: col }}>{cat}</span>
-                      <span style={{ fontSize: 22, fontWeight: 700, color: col, fontVariantNumeric: "tabular-nums" }}>{fmtM(d?.total ?? 0)}</span>
-                    </div>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                      <thead>
-                        <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
-                          <th style={{ padding: "4px 0", textAlign: "left", color: MUTED, fontSize: 10, fontWeight: 500, textTransform: "uppercase" }}>Type</th>
-                          <th style={{ padding: "4px 0", textAlign: "right", color: MUTED, fontSize: 10, fontWeight: 500, textTransform: "uppercase" }}>Projected</th>
-                          <th style={{ padding: "4px 0", textAlign: "right", color: MUTED, fontSize: 10, fontWeight: 500, textTransform: "uppercase" }}>Excel Target</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
-                          <td style={{ padding: "7px 0", color: TEXT }}>1st Fills</td>
-                          <td style={{ padding: "7px 0", textAlign: "right", fontWeight: 600, color: col, fontVariantNumeric: "tabular-nums" }}>{fmtM(d?.["1st_fill"] ?? 0)}</td>
-                          <td style={{ padding: "7px 0", textAlign: "right", color: MUTED, fontVariantNumeric: "tabular-nums" }}>{fmtM(tgt?.first ?? 0)}</td>
-                        </tr>
-                        <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
-                          <td style={{ padding: "7px 0", color: TEXT }}>2nd Fills</td>
-                          <td style={{ padding: "7px 0", textAlign: "right", fontWeight: 600, color: col, fontVariantNumeric: "tabular-nums" }}>{fmtM(d?.["2nd_fill"] ?? 0)}</td>
-                          <td style={{ padding: "7px 0", textAlign: "right", color: MUTED, fontVariantNumeric: "tabular-nums" }}>{fmtM(tgt?.second ?? 0)}</td>
-                        </tr>
-                        <tr>
-                          <td style={{ padding: "7px 0", color: TEXT }}>New Starts</td>
-                          <td style={{ padding: "7px 0", textAlign: "right", fontWeight: 600, color: col, fontVariantNumeric: "tabular-nums" }}>{fmtM(d?.new_start ?? 0)}</td>
-                          <td style={{ padding: "7px 0", textAlign: "right", color: MUTED, fontVariantNumeric: "tabular-nums" }}>{fmtM(tgt?.new_start ?? 0)}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                    <div style={{ marginTop: 12 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: MUTED, marginBottom: 4 }}>
-                        <span>vs Excel target</span>
-                        <span style={{ color: pct >= 90 ? GREEN : pct >= 75 ? AMBER : RED, fontWeight: 600 }}>{pct.toFixed(0)}%</span>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ borderBottom: `2px solid ${BORDER}` }}>
+                    <th style={{ padding: "8px 12px", textAlign: "left", color: MUTED, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.5px", width: "30%" }}>Metric</th>
+                    {SHOW.map(c => (
+                      <th key={c} style={{ padding: "8px 12px", textAlign: "right", color: COL[c], fontSize: 11, textTransform: "uppercase", letterSpacing: "0.5px" }}>{CAT_LABEL[c]}</th>
+                    ))}
+                    <th style={{ padding: "8px 12px", textAlign: "right", color: MUTED, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.5px" }}>Combined</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Goal */}
+                  <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
+                    <td style={{ padding: "7px 12px", color: MUTED, fontSize: 12 }}>Monthly Goal</td>
+                    {SHOW.map(c => cv(dd.categories[c]?.goal ?? 0))}
+                    {cv(dd.combined.goal)}
+                  </tr>
+
+                  {sectionRow("Actuals")}
+                  <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
+                    <td style={{ padding: "7px 12px", color: TEXT }}>Shipped this month</td>
+                    {SHOW.map(c => cv(dd.categories[c]?.actual ?? 0, GREEN))}
+                    {cv(dd.combined.actual, GREEN)}
+                  </tr>
+
+                  {sectionRow("Confirmed")}
+                  <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
+                    <td style={{ padding: "7px 12px", color: TEXT }}>Scheduled</td>
+                    {SHOW.map(c => cv(dd.categories[c]?.scheduled ?? 0, BLUE))}
+                    {cv(dd.combined.scheduled, BLUE)}
+                  </tr>
+
+                  {sectionRow("1st Fill Opportunities by Week")}
+                  {dd.week_labels.map((wl, wi) => (
+                    <tr key={wl} style={{ borderBottom: `1px solid ${BORDER}` }}>
+                      <td style={{ padding: "7px 12px 7px 20px", color: MUTED, fontSize: 12 }}>{wl}</td>
+                      {SHOW.map(c => cv(dd.categories[c]?.opps_by_week[wi] ?? 0))}
+                      {cv(dd.combined.opps_by_week[wi] ?? 0)}
+                    </tr>
+                  ))}
+
+                  {sectionRow("Additional")}
+                  <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
+                    <td style={{ padding: "7px 12px", color: TEXT }}>2nd Fills</td>
+                    {SHOW.map(c => cv(dd.categories[c]?.second_fill ?? 0))}
+                    {cv(dd.combined.second_fill)}
+                  </tr>
+                  <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
+                    <td style={{ padding: "7px 12px", color: TEXT }}>New Starts</td>
+                    {SHOW.map(c => cv(dd.categories[c]?.new_starts ?? 0))}
+                    {cv(dd.combined.new_starts)}
+                  </tr>
+                  {(dd.combined.postpones > 0) && (
+                    <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
+                      <td style={{ padding: "7px 12px", color: TEXT }}>Postpones</td>
+                      {SHOW.map(c => cv(-(dd.categories[c]?.postpones ?? 0), RED))}
+                      {cv(-dd.combined.postpones, RED)}
+                    </tr>
+                  )}
+
+                  {/* Projection totals */}
+                  <tr style={{ borderTop: `2px solid ${BORDER}`, background: "rgba(255,255,255,0.04)" }}>
+                    <td style={{ padding: "10px 12px", fontWeight: 700, color: TEXT, fontSize: 13 }}>PROJECTION</td>
+                    {SHOW.map(c => {
+                      const proj = dd.categories[c]?.projection ?? 0;
+                      const col = COL[c];
+                      return <td key={c} style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700, color: col, fontVariantNumeric: "tabular-nums" }}>{fmtM(proj)}</td>;
+                    })}
+                    <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700, color: barColor, fontVariantNumeric: "tabular-nums" }}>{fmtM(dd.combined.projection)}</td>
+                  </tr>
+                  <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
+                    <td style={{ padding: "7px 12px", color: MUTED, fontSize: 12 }}>Gap to Goal</td>
+                    {SHOW.map(c => {
+                      const g = dd.categories[c]?.gap ?? 0;
+                      return <td key={c} style={{ padding: "7px 12px", textAlign: "right", color: g >= 0 ? GREEN : RED, fontVariantNumeric: "tabular-nums", fontSize: 12 }}>{g >= 0 ? "+" : ""}{fmtM(g)}</td>;
+                    })}
+                    {(() => {
+                      const g = dd.combined.gap;
+                      return <td style={{ padding: "7px 12px", textAlign: "right", color: g >= 0 ? GREEN : RED, fontVariantNumeric: "tabular-nums", fontWeight: 600, fontSize: 12 }}>{g >= 0 ? "+" : ""}{fmtM(g)}</td>;
+                    })()}
+                  </tr>
+
+                  {/* % of goal progress bars */}
+                  <tr>
+                    <td style={{ padding: "10px 12px", color: MUTED, fontSize: 11 }}>% of Goal</td>
+                    {SHOW.map(c => {
+                      const goal = dd.categories[c]?.goal ?? 0;
+                      const proj = dd.categories[c]?.projection ?? 0;
+                      const pct = goal > 0 ? Math.min(proj / goal * 100, 100) : 0;
+                      const bc = pct >= 90 ? GREEN : pct >= 70 ? AMBER : RED;
+                      return (
+                        <td key={c} style={{ padding: "10px 12px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
+                            <div style={{ height: 6, width: 80, background: BORDER, borderRadius: 3 }}>
+                              <div style={{ height: "100%", width: `${pct}%`, background: bc, borderRadius: 3 }} />
+                            </div>
+                            <span style={{ fontSize: 11, color: bc, fontWeight: 600, minWidth: 36, textAlign: "right" }}>{pct.toFixed(0)}%</span>
+                          </div>
+                        </td>
+                      );
+                    })}
+                    <td style={{ padding: "10px 12px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
+                        <div style={{ height: 6, width: 80, background: BORDER, borderRadius: 3 }}>
+                          <div style={{ height: "100%", width: `${Math.min(projPct, 100)}%`, background: barColor, borderRadius: 3 }} />
+                        </div>
+                        <span style={{ fontSize: 11, color: barColor, fontWeight: 600, minWidth: 36, textAlign: "right" }}>{projPct.toFixed(0)}%</span>
                       </div>
-                      <div style={{ height: 4, background: BORDER, borderRadius: 2 }}>
-                        <div style={{ height: "100%", width: `${Math.min(pct, 100)}%`, background: col, borderRadius: 2 }} />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
+            <div style={{ fontSize: 10, color: MUTED, marginTop: 8 }}>Generated {dd.generated} &bull; {nw} weeks &bull; Excludes DISCHARGED, DISCONTINUED, SCHEDULED patients from opportunities</div>
           </div>
         );
       })()}

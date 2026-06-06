@@ -664,6 +664,276 @@ def get_annual_forecast(db: Session = Depends(get_db)):
     }
 
 
+@router.get("/detail")
+def get_projection_detail(db: Session = Depends(get_db)):
+    """
+    Excel-style projection breakdown for the current month:
+    Actual + Scheduled + Weekly 1st-fill Opps + 2nd Fills + New Starts - Postpones
+    Matches the structure of the June Goals Summary spreadsheet.
+    """
+    from collections import defaultdict
+    from sqlalchemy import text
+
+    today = date.today()
+    current_ym = today.strftime("%Y-%m")
+    year, month_num = map(int, current_ym.split("-"))
+    _, last_day = monthrange(year, month_num)
+    month_start = date(year, month_num, 1)
+    month_end   = date(year, month_num, last_day)
+
+    CATS = ["IVIG", "HEME", "ANC_BILLED"]
+
+    # Hardcoded monthly goals (matches Excel June Goals)
+    GOALS = {"IVIG": 2_462_304.0, "HEME": 2_350_000.0, "ANC_BILLED": 0.0}
+
+    # Week boundaries for the current month
+    boundaries = [1, 8, 15, 22, 29, last_day + 1]
+    weeks: list[tuple[date, date]] = []
+    for i in range(len(boundaries) - 1):
+        ws = date(year, month_num, boundaries[i])
+        we = date(year, month_num, min(boundaries[i + 1] - 1, last_day))
+        if ws <= we:
+            weeks.append((ws, we))
+
+    def wlabel(ws: date, we: date) -> str:
+        return f"{ws.strftime('%b')} {ws.day}-{we.day}"
+
+    week_labels = [wlabel(ws, we) for ws, we in weeks]
+
+    # Per-patient-per-category monthly TP (best prior month)
+    tp_rows = db.execute(text("""
+        SELECT ptsn, category, strftime('%Y-%m', date_completed) ym, SUM(tp) total_tp
+        FROM dispense
+        WHERE tp > 0 AND days_supply > 7
+        GROUP BY ptsn, category, strftime('%Y-%m', date_completed)
+    """)).fetchall()
+    cat_monthly: dict = defaultdict(list)
+    for ptsn, cat, ym, tp in tp_rows:
+        if ym:
+            cat_monthly[(ptsn, cat)].append((ym, float(tp or 0)))
+
+    def best_tp(ptsn: str, cat: str) -> float:
+        months = sorted(
+            [(ym, tp) for ym, tp in cat_monthly[(ptsn, cat)] if ym < current_ym],
+            reverse=True,
+        )
+        if months:
+            return months[0][1]
+        # fallback: any month including current
+        all_m = sorted(cat_monthly[(ptsn, cat)], reverse=True)
+        return all_m[0][1] if all_m else 0.0
+
+    def norm_cat(raw: str | None) -> str | None:
+        if not raw:
+            return None
+        r = raw.strip().upper()
+        if r == "IVIG":
+            return "IVIG"
+        if r == "HEME":
+            return "HEME"
+        if r in ("ALPHA1", "ANC_BILLED", "ALPHA-1"):
+            return "ANC_BILLED"
+        return None
+
+    # ── 1. Actuals (already shipped this month) ───────────────────────────────
+    actual_rows = db.execute(text("""
+        SELECT category, SUM(tp) total_tp, COUNT(DISTINCT ptsn) pts
+        FROM dispense
+        WHERE strftime('%Y-%m', date_completed) = :ym AND tp > 0
+        GROUP BY category
+    """), {"ym": current_ym}).fetchall()
+
+    actuals: dict[str, float] = {c: 0.0 for c in CATS}
+    actuals_pts: dict[str, int] = {c: 0 for c in CATS}
+    for cat, tp, pts in actual_rows:
+        nc = norm_cat(cat)
+        if nc:
+            actuals[nc] += float(tp or 0)
+            actuals_pts[nc] += int(pts or 0)
+
+    # ── 2. Scheduled (SCHEDULED status, use best monthly TP) ──────────────────
+    sched_rows = db.execute(text("""
+        SELECT r.ptsn, r.category
+        FROM refill r
+        WHERE r.current_status = 'SCHEDULED'
+        AND r.category IN ('IVIG','HEME','ANC_BILLED')
+    """)).fetchall()
+
+    scheduled: dict[str, float] = {c: 0.0 for c in CATS}
+    sched_pts: dict[str, int] = {c: 0 for c in CATS}
+    for ptsn, cat in sched_rows:
+        nc = norm_cat(cat)
+        if not nc:
+            continue
+        tp = best_tp(ptsn, nc)
+        if not tp:
+            row = db.execute(text(
+                "SELECT SUM(tp) FROM dispense WHERE ptsn=:p AND category=:c AND tp>0"
+            ), {"p": ptsn, "c": cat}).fetchone()
+            tp = float(row[0] or 0) if row else 0.0
+        scheduled[nc] += tp
+        sched_pts[nc] += 1
+
+    # ── 3. 1st fill opps by week + 2nd fill opps ─────────────────────────────
+    # Active patients (not SCHEDULED/SHIPPED/DISCHARGED/DISCONTINUED)
+    active_rows = db.execute(text("""
+        SELECT r.ptsn, r.category, r.current_status, d.date_completed, d.days_supply
+        FROM refill r
+        INNER JOIN (
+            SELECT ptsn, category, MAX(date_completed) max_date
+            FROM dispense WHERE days_supply > 7
+            GROUP BY ptsn, category
+        ) lx ON r.ptsn = lx.ptsn AND r.category = lx.category
+        INNER JOIN dispense d
+            ON d.ptsn = r.ptsn AND d.category = r.category
+            AND d.date_completed = lx.max_date AND d.days_supply > 7
+        WHERE r.current_status NOT IN (
+            'DISCHARGED','DISCONTINUED','SCHEDULED','SHIPPED'
+        )
+    """)).fetchall()
+
+    opps_by_week: dict[str, list[float]] = {c: [0.0] * len(weeks) for c in CATS}
+    opps_pts_by_week: dict[str, list[int]] = {c: [0] * len(weeks) for c in CATS}
+    second_fill: dict[str, float] = {c: 0.0 for c in CATS}
+    second_pts: dict[str, int] = {c: 0 for c in CATS}
+
+    for ptsn, cat, status, dc_str, ds_val in active_rows:
+        nc = norm_cat(cat)
+        if not nc or not dc_str or not ds_val:
+            continue
+        ds = int(ds_val)
+        if ds <= 7:
+            continue
+        dc = date.fromisoformat(dc_str)
+        ship1 = dc + timedelta(days=ds)
+
+        if not (month_start <= ship1 <= month_end):
+            continue
+
+        tp = best_tp(ptsn, nc)
+        if not tp:
+            row = db.execute(text(
+                "SELECT SUM(tp) FROM dispense WHERE ptsn=:p AND category=:c AND date_completed=:d"
+            ), {"p": ptsn, "c": cat, "d": dc_str}).fetchone()
+            tp = float(row[0] or 0) if row else 0.0
+        if not tp:
+            continue
+
+        for wi, (ws, we) in enumerate(weeks):
+            if ws <= ship1 <= we:
+                opps_by_week[nc][wi] += tp
+                opps_pts_by_week[nc][wi] += 1
+                break
+
+        if ds <= 28:
+            ship2 = ship1 + timedelta(days=ds)
+            if month_start <= ship2 <= month_end:
+                second_fill[nc] += tp
+                second_pts[nc] += 1
+
+    # ── 4. New starts (first ever dispense in current month) ──────────────────
+    new_start_rows = db.execute(text("""
+        SELECT category, SUM(tp) total_tp, COUNT(DISTINCT ptsn) pts
+        FROM dispense
+        WHERE strftime('%Y-%m', date_completed) = :ym AND tp > 0
+        AND ptsn NOT IN (
+            SELECT DISTINCT ptsn FROM dispense
+            WHERE strftime('%Y-%m', date_completed) < :ym AND tp > 0
+        )
+        GROUP BY category
+    """), {"ym": current_ym}).fetchall()
+
+    new_starts: dict[str, float] = {c: 0.0 for c in CATS}
+    new_starts_pts: dict[str, int] = {c: 0 for c in CATS}
+    for cat, tp, pts in new_start_rows:
+        nc = norm_cat(cat)
+        if nc:
+            new_starts[nc] += float(tp or 0)
+            new_starts_pts[nc] += int(pts or 0)
+
+    # ── 5. Postpones (REFILL POSTPONED / PUSHED with June ship date) ──────────
+    postpone_active = db.execute(text("""
+        SELECT r.ptsn, r.category, d.date_completed, d.days_supply
+        FROM refill r
+        INNER JOIN (
+            SELECT ptsn, category, MAX(date_completed) max_date
+            FROM dispense WHERE days_supply > 7
+            GROUP BY ptsn, category
+        ) lx ON r.ptsn = lx.ptsn AND r.category = lx.category
+        INNER JOIN dispense d
+            ON d.ptsn = r.ptsn AND d.category = r.category
+            AND d.date_completed = lx.max_date AND d.days_supply > 7
+        WHERE r.current_status IN ('REFILL POSTPONED','PUSHED')
+        AND r.category IN ('IVIG','HEME','ANC_BILLED')
+    """)).fetchall()
+
+    postpones: dict[str, float] = {c: 0.0 for c in CATS}
+    postpone_pts: dict[str, int] = {c: 0 for c in CATS}
+    for ptsn, cat, dc_str, ds_val in postpone_active:
+        nc = norm_cat(cat)
+        if not nc or not dc_str or not ds_val:
+            continue
+        ds = int(ds_val)
+        dc = date.fromisoformat(dc_str)
+        ship1 = dc + timedelta(days=ds)
+        if month_start <= ship1 <= month_end:
+            tp = best_tp(ptsn, nc)
+            if tp:
+                postpones[nc] += tp
+                postpone_pts[nc] += 1
+
+    # ── Build per-category result ─────────────────────────────────────────────
+    categories: dict = {}
+    for cat in CATS:
+        total_opps = sum(opps_by_week[cat])
+        projection = (
+            actuals[cat] + scheduled[cat] + total_opps
+            + second_fill[cat] + new_starts[cat] - postpones[cat]
+        )
+        categories[cat] = {
+            "goal": GOALS.get(cat, 0.0),
+            "actual": round(actuals[cat]),
+            "actual_pts": actuals_pts[cat],
+            "scheduled": round(scheduled[cat]),
+            "scheduled_pts": sched_pts[cat],
+            "opps_by_week": [round(x) for x in opps_by_week[cat]],
+            "opps_pts_by_week": opps_pts_by_week[cat],
+            "second_fill": round(second_fill[cat]),
+            "second_pts": second_pts[cat],
+            "new_starts": round(new_starts[cat]),
+            "new_starts_pts": new_starts_pts[cat],
+            "postpones": round(postpones[cat]),
+            "postpone_pts": postpone_pts[cat],
+            "projection": round(projection),
+            "gap": round(GOALS.get(cat, 0.0) - projection),
+        }
+
+    combined_proj = sum(categories[c]["projection"] for c in CATS)
+    combined_goal = sum(GOALS.values())
+
+    return {
+        "month": current_ym,
+        "month_label": date(year, month_num, 1).strftime("%B %Y"),
+        "week_labels": week_labels,
+        "categories": categories,
+        "combined": {
+            "goal": combined_goal,
+            "actual": sum(categories[c]["actual"] for c in CATS),
+            "scheduled": sum(categories[c]["scheduled"] for c in CATS),
+            "opps_by_week": [
+                sum(categories[c]["opps_by_week"][wi] for c in CATS)
+                for wi in range(len(weeks))
+            ],
+            "second_fill": sum(categories[c]["second_fill"] for c in CATS),
+            "new_starts": sum(categories[c]["new_starts"] for c in CATS),
+            "postpones": sum(categories[c]["postpones"] for c in CATS),
+            "projection": combined_proj,
+            "gap": round(combined_goal - combined_proj),
+        },
+        "generated": today.isoformat(),
+    }
+
+
 @router.post("/goals")
 def set_goals(payload: GoalPayload, db: Session = Depends(get_db)):
     for cls, goal_tp in payload.goals.items():
