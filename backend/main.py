@@ -1,6 +1,7 @@
 import os
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
@@ -61,4 +62,11 @@ def health():
 # Serve built React frontend (production only — skipped in local dev when dist/ doesn't exist)
 _dist = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
 if os.path.isdir(_dist):
-    app.mount("/", StaticFiles(directory=_dist, html=True), name="frontend")
+    # Serve static assets (JS, CSS, images) from /assets/
+    app.mount("/assets", StaticFiles(directory=os.path.join(_dist, "assets")), name="assets")
+
+    # SPA catch-all: serve index.html for any non-API path so React Router handles routing
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        index = os.path.join(_dist, "index.html")
+        return FileResponse(index)
