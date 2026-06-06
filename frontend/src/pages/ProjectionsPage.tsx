@@ -24,6 +24,27 @@ interface ForecastData {
   actuals: ActualLine[];
 }
 
+interface AnnualCat {
+  "1st_fill": number; "2nd_fill": number; new_start: number; total: number;
+  pts_1st: number; pts_2nd: number; pts_new: number;
+}
+interface AnnualMonth {
+  month: string;
+  categories: Record<string, AnnualCat>;
+  total: number;
+}
+interface AnnualData {
+  months: AnnualMonth[];
+  annual: Record<string, { "1st_fill": number; "2nd_fill": number; new_start: number; total: number }>;
+  generated: string;
+}
+
+// Excel targets (monthly) for reference
+const EXCEL_TARGETS: Record<string, { first: number; second: number; new_start: number }> = {
+  IVIG: { first: 1_520_000, second: 210_000, new_start: 250_000 },
+  HEME: { first: 1_600_000, second: 50_000, new_start: 200_000 },
+};
+
 // â”€â”€ Theme â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const BG = "#0f1923";
 const CARD = "#1a2736";
@@ -104,8 +125,15 @@ export default function ProjectionsPage() {
   const [selectedMonth, setSelectedMonth] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [clock, setClock] = useState(new Date());
+  const [annualData, setAnnualData] = useState<AnnualData | null>(null);
+  const [annualView, setAnnualView] = useState<"table" | "chart">("table");
 
   useEffect(() => { const t = setInterval(() => setClock(new Date()), 1000); return () => clearInterval(t); }, []);
+  useEffect(() => {
+    api.get<AnnualData>("/projections/annual")
+      .then(r => setAnnualData(r.data))
+      .catch(() => {});
+  }, []);
 
   function load(month?: string) {
     setLoading(true);
@@ -282,6 +310,140 @@ export default function ProjectionsPage() {
           </div>
         </div>
       </div>
+
+
+      {/* Annual Forecast Section */}
+      {annualData && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: TEXT, margin: 0 }}>12-Month Rolling Revenue Forecast</h2>
+              <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>Based on each patient&apos;s actual monthly TP and next call date cycle</div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {(["table", "chart"] as const).map(v => (
+                <button key={v} onClick={() => setAnnualView(v)} style={{ padding: "5px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  background: annualView === v ? BLUE : "transparent", color: annualView === v ? "#fff" : MUTED, border: `1px solid ${annualView === v ? BLUE : BORDER}` }}>
+                  {v.charAt(0).toUpperCase() + v.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Excel targets comparison cards */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+            {(["IVIG", "HEME"] as const).map(cat => {
+              const proj = annualData.annual[cat];
+              const tgt = EXCEL_TARGETS[cat];
+              const projMonthly = proj ? proj.total / 12 : 0;
+              const tgtMonthly = tgt ? tgt.first + tgt.second + tgt.new_start : 0;
+              const pct = tgtMonthly > 0 ? (projMonthly / tgtMonthly * 100) : 0;
+              const col = cat === "IVIG" ? BLUE : PURPLE;
+              return (
+                <div key={cat} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: col }}>{cat}</span>
+                    <span style={{ fontSize: 11, color: pct >= 90 ? GREEN : pct >= 75 ? AMBER : RED, fontWeight: 600 }}>
+                      {pct.toFixed(0)}% of Excel target
+                    </span>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+                    {[
+                      { label: "1st Fills", p: (proj?.["1st_fill"] ?? 0) / 12, t: tgt?.first ?? 0 },
+                      { label: "2nd Fills", p: (proj?.["2nd_fill"] ?? 0) / 12, t: tgt?.second ?? 0 },
+                      { label: "New Starts", p: (proj?.new_start ?? 0) / 12, t: tgt?.new_start ?? 0 },
+                    ].map(({ label, p, t }) => (
+                      <div key={label} style={{ textAlign: "center" }}>
+                        <div style={{ fontSize: 10, color: MUTED, marginBottom: 3 }}>{label}</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: col }}>{fmtM(p)}<span style={{ fontSize: 9, color: MUTED }}>/mo</span></div>
+                        <div style={{ fontSize: 10, color: MUTED }}>target {fmtM(t)}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: 10, height: 4, background: BORDER, borderRadius: 2 }}>
+                    <div style={{ height: "100%", width: `${Math.min(pct, 100)}%`, background: col, borderRadius: 2 }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {annualView === "chart" ? (
+            <DCard title="Monthly Revenue Pipeline by Category">
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={annualData.months.map(m => ({
+                  month: m.month.slice(5),
+                  IVIG: Math.round((m.categories["IVIG"]?.total ?? 0) / 1000),
+                  HEME: Math.round((m.categories["HEME"]?.total ?? 0) / 1000),
+                }))} margin={{ left: 10, right: 10, top: 8 }}>
+                  <XAxis dataKey="month" tick={tickStyle} />
+                  <YAxis tickFormatter={v => `$${v}K`} tick={tickStyle} width={65} />
+                  <Tooltip contentStyle={ttStyle} formatter={(v: number) => `$${v.toLocaleString()}K`} />
+                  <Legend wrapperStyle={{ color: MUTED, fontSize: 12 }} />
+                  <Bar dataKey="IVIG" stackId="a" fill={BLUE} name="IVIG" />
+                  <Bar dataKey="HEME" stackId="a" fill={PURPLE} name="HEME" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </DCard>
+          ) : (
+            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ borderBottom: `2px solid ${BORDER}` }}>
+                    <th style={{ padding: "10px 14px", textAlign: "left", color: MUTED, fontSize: 11, textTransform: "uppercase" }}>Month</th>
+                    {(["IVIG", "HEME"] as const).map(cat => (
+                      ["1st Fill", "2nd Fill", "New Start", "Total"].map(col => (
+                        <th key={`${cat}-${col}`} style={{ padding: "10px 8px", textAlign: "right", fontSize: 10, textTransform: "uppercase",
+                          color: col === "Total" ? (cat === "IVIG" ? BLUE : PURPLE) : MUTED }}>
+                          {cat} {col}
+                        </th>
+                      ))
+                    ))}
+                    <th style={{ padding: "10px 14px", textAlign: "right", color: TEXT, fontSize: 11, textTransform: "uppercase" }}>Grand Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {annualData.months.map((m, i) => {
+                    const ivig = m.categories["IVIG"];
+                    const heme = m.categories["HEME"];
+                    const isNow = m.month === new Date().toISOString().slice(0, 7);
+                    return (
+                      <tr key={m.month} style={{ borderBottom: `1px solid ${BORDER}`, background: isNow ? "rgba(59,130,246,0.07)" : i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.01)" }}>
+                        <td style={{ padding: "9px 14px", fontWeight: isNow ? 700 : 400, color: isNow ? BLUE : TEXT }}>
+                          {new Date(m.month + "-02").toLocaleString("en-US", { month: "short", year: "numeric" })}
+                          {isNow && <span style={{ marginLeft: 6, fontSize: 9, background: BLUE, color: "#fff", padding: "1px 5px", borderRadius: 3 }}>NOW</span>}
+                        </td>
+                        {([["IVIG", ivig, BLUE], ["HEME", heme, PURPLE]] as [string, AnnualCat | undefined, string][]).flatMap(([, d, col]) => [
+                          <td key={`${m.month}-${col}-1`} style={{ padding: "9px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: MUTED }}>{fmtM(d?.["1st_fill"] ?? 0)}</td>,
+                          <td key={`${m.month}-${col}-2`} style={{ padding: "9px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: MUTED }}>{fmtM(d?.["2nd_fill"] ?? 0)}</td>,
+                          <td key={`${m.month}-${col}-n`} style={{ padding: "9px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: MUTED }}>{fmtM(d?.new_start ?? 0)}</td>,
+                          <td key={`${m.month}-${col}-t`} style={{ padding: "9px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600, color: col }}>{fmtM(d?.total ?? 0)}</td>,
+                        ])}
+                        <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: TEXT }}>{fmtM(m.total)}</td>
+                      </tr>
+                    );
+                  })}
+                  <tr style={{ borderTop: `2px solid ${BORDER}`, background: "rgba(255,255,255,0.03)" }}>
+                    <td style={{ padding: "10px 14px", fontWeight: 700, color: TEXT }}>ANNUAL TOTAL</td>
+                    {([["IVIG", BLUE], ["HEME", PURPLE]] as [string, string][]).flatMap(([cat, col]) => {
+                      const a = annualData.annual[cat];
+                      return [
+                        <td key={`${cat}-1`} style={{ padding: "10px 8px", textAlign: "right", fontWeight: 700, color: MUTED }}>{fmtM(a?.["1st_fill"] ?? 0)}</td>,
+                        <td key={`${cat}-2`} style={{ padding: "10px 8px", textAlign: "right", fontWeight: 700, color: MUTED }}>{fmtM(a?.["2nd_fill"] ?? 0)}</td>,
+                        <td key={`${cat}-n`} style={{ padding: "10px 8px", textAlign: "right", fontWeight: 700, color: MUTED }}>{fmtM(a?.new_start ?? 0)}</td>,
+                        <td key={`${cat}-t`} style={{ padding: "10px 8px", textAlign: "right", fontWeight: 700, color: col }}>{fmtM(a?.total ?? 0)}</td>,
+                      ];
+                    })}
+                    <td style={{ padding: "10px 14px", textAlign: "right", fontWeight: 700, color: BLUE }}>
+                      {fmtM(Object.values(annualData.annual).reduce((s, v) => s + v.total, 0))}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* KPI Row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 16, marginBottom: 24 }}>
