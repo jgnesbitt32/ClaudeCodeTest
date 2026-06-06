@@ -126,7 +126,6 @@ export default function ProjectionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [clock, setClock] = useState(new Date());
   const [annualData, setAnnualData] = useState<AnnualData | null>(null);
-  const [annualView, setAnnualView] = useState<"table" | "chart">("table");
 
   useEffect(() => { const t = setInterval(() => setClock(new Date()), 1000); return () => clearInterval(t); }, []);
   useEffect(() => {
@@ -312,138 +311,74 @@ export default function ProjectionsPage() {
       </div>
 
 
-      {/* Annual Forecast Section */}
-      {annualData && (
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <div>
-              <h2 style={{ fontSize: 16, fontWeight: 700, color: TEXT, margin: 0 }}>12-Month Rolling Revenue Forecast</h2>
-              <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>Based on each patient&apos;s actual monthly TP and next call date cycle</div>
+      {/* June Forecast Section */}
+      {annualData && (() => {
+        const now = new Date().toISOString().slice(0, 7);
+        const cur = annualData.months.find(m => m.month === now) ?? annualData.months[0];
+        const monthLabel = new Date(cur.month + "-02").toLocaleString("en-US", { month: "long", year: "numeric" });
+        return (
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ marginBottom: 12 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: TEXT, margin: 0 }}>{monthLabel} Revenue Forecast</h2>
+              <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>Projected from each patient&apos;s actual monthly TP and next call date</div>
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              {(["table", "chart"] as const).map(v => (
-                <button key={v} onClick={() => setAnnualView(v)} style={{ padding: "5px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                  background: annualView === v ? BLUE : "transparent", color: annualView === v ? "#fff" : MUTED, border: `1px solid ${annualView === v ? BLUE : BORDER}` }}>
-                  {v.charAt(0).toUpperCase() + v.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
 
-          {/* Excel targets comparison cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-            {(["IVIG", "HEME"] as const).map(cat => {
-              const proj = annualData.annual[cat];
-              const tgt = EXCEL_TARGETS[cat];
-              const projMonthly = proj ? proj.total / 12 : 0;
-              const tgtMonthly = tgt ? tgt.first + tgt.second + tgt.new_start : 0;
-              const pct = tgtMonthly > 0 ? (projMonthly / tgtMonthly * 100) : 0;
-              const col = cat === "IVIG" ? BLUE : PURPLE;
-              return (
-                <div key={cat} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 16 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: col }}>{cat}</span>
-                    <span style={{ fontSize: 11, color: pct >= 90 ? GREEN : pct >= 75 ? AMBER : RED, fontWeight: 600 }}>
-                      {pct.toFixed(0)}% of Excel target
-                    </span>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
-                    {[
-                      { label: "1st Fills", p: (proj?.["1st_fill"] ?? 0) / 12, t: tgt?.first ?? 0 },
-                      { label: "2nd Fills", p: (proj?.["2nd_fill"] ?? 0) / 12, t: tgt?.second ?? 0 },
-                      { label: "New Starts", p: (proj?.new_start ?? 0) / 12, t: tgt?.new_start ?? 0 },
-                    ].map(({ label, p, t }) => (
-                      <div key={label} style={{ textAlign: "center" }}>
-                        <div style={{ fontSize: 10, color: MUTED, marginBottom: 3 }}>{label}</div>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: col }}>{fmtM(p)}<span style={{ fontSize: 9, color: MUTED }}>/mo</span></div>
-                        <div style={{ fontSize: 10, color: MUTED }}>target {fmtM(t)}</div>
+            {/* IVIG + HEME side-by-side cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+              {(["IVIG", "HEME"] as const).map(cat => {
+                const d = cur.categories[cat];
+                const tgt = EXCEL_TARGETS[cat];
+                const tgtTotal = tgt ? tgt.first + tgt.second + tgt.new_start : 0;
+                const pct = tgtTotal > 0 ? ((d?.total ?? 0) / tgtTotal * 100) : 0;
+                const col = cat === "IVIG" ? BLUE : PURPLE;
+                return (
+                  <div key={cat} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 20 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                      <span style={{ fontSize: 15, fontWeight: 700, color: col }}>{cat}</span>
+                      <span style={{ fontSize: 22, fontWeight: 700, color: col, fontVariantNumeric: "tabular-nums" }}>{fmtM(d?.total ?? 0)}</span>
+                    </div>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
+                          <th style={{ padding: "4px 0", textAlign: "left", color: MUTED, fontSize: 10, fontWeight: 500, textTransform: "uppercase" }}>Type</th>
+                          <th style={{ padding: "4px 0", textAlign: "right", color: MUTED, fontSize: 10, fontWeight: 500, textTransform: "uppercase" }}>Projected</th>
+                          <th style={{ padding: "4px 0", textAlign: "right", color: MUTED, fontSize: 10, fontWeight: 500, textTransform: "uppercase" }}>Excel Target</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
+                          <td style={{ padding: "7px 0", color: TEXT }}>1st Fills</td>
+                          <td style={{ padding: "7px 0", textAlign: "right", fontWeight: 600, color: col, fontVariantNumeric: "tabular-nums" }}>{fmtM(d?.["1st_fill"] ?? 0)}</td>
+                          <td style={{ padding: "7px 0", textAlign: "right", color: MUTED, fontVariantNumeric: "tabular-nums" }}>{fmtM(tgt?.first ?? 0)}</td>
+                        </tr>
+                        <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
+                          <td style={{ padding: "7px 0", color: TEXT }}>2nd Fills</td>
+                          <td style={{ padding: "7px 0", textAlign: "right", fontWeight: 600, color: col, fontVariantNumeric: "tabular-nums" }}>{fmtM(d?.["2nd_fill"] ?? 0)}</td>
+                          <td style={{ padding: "7px 0", textAlign: "right", color: MUTED, fontVariantNumeric: "tabular-nums" }}>{fmtM(tgt?.second ?? 0)}</td>
+                        </tr>
+                        <tr>
+                          <td style={{ padding: "7px 0", color: TEXT }}>New Starts</td>
+                          <td style={{ padding: "7px 0", textAlign: "right", fontWeight: 600, color: col, fontVariantNumeric: "tabular-nums" }}>{fmtM(d?.new_start ?? 0)}</td>
+                          <td style={{ padding: "7px 0", textAlign: "right", color: MUTED, fontVariantNumeric: "tabular-nums" }}>{fmtM(tgt?.new_start ?? 0)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: MUTED, marginBottom: 4 }}>
+                        <span>vs Excel target</span>
+                        <span style={{ color: pct >= 90 ? GREEN : pct >= 75 ? AMBER : RED, fontWeight: 600 }}>{pct.toFixed(0)}%</span>
                       </div>
-                    ))}
+                      <div style={{ height: 4, background: BORDER, borderRadius: 2 }}>
+                        <div style={{ height: "100%", width: `${Math.min(pct, 100)}%`, background: col, borderRadius: 2 }} />
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ marginTop: 10, height: 4, background: BORDER, borderRadius: 2 }}>
-                    <div style={{ height: "100%", width: `${Math.min(pct, 100)}%`, background: col, borderRadius: 2 }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {annualView === "chart" ? (
-            <DCard title="Monthly Revenue Pipeline by Category">
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={annualData.months.map(m => ({
-                  month: m.month.slice(5),
-                  IVIG: Math.round((m.categories["IVIG"]?.total ?? 0) / 1000),
-                  HEME: Math.round((m.categories["HEME"]?.total ?? 0) / 1000),
-                }))} margin={{ left: 10, right: 10, top: 8 }}>
-                  <XAxis dataKey="month" tick={tickStyle} />
-                  <YAxis tickFormatter={v => `$${v}K`} tick={tickStyle} width={65} />
-                  <Tooltip contentStyle={ttStyle} formatter={(v: number) => `$${v.toLocaleString()}K`} />
-                  <Legend wrapperStyle={{ color: MUTED, fontSize: 12 }} />
-                  <Bar dataKey="IVIG" stackId="a" fill={BLUE} name="IVIG" />
-                  <Bar dataKey="HEME" stackId="a" fill={PURPLE} name="HEME" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </DCard>
-          ) : (
-            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                <thead>
-                  <tr style={{ borderBottom: `2px solid ${BORDER}` }}>
-                    <th style={{ padding: "10px 14px", textAlign: "left", color: MUTED, fontSize: 11, textTransform: "uppercase" }}>Month</th>
-                    {(["IVIG", "HEME"] as const).map(cat => (
-                      ["1st Fill", "2nd Fill", "New Start", "Total"].map(col => (
-                        <th key={`${cat}-${col}`} style={{ padding: "10px 8px", textAlign: "right", fontSize: 10, textTransform: "uppercase",
-                          color: col === "Total" ? (cat === "IVIG" ? BLUE : PURPLE) : MUTED }}>
-                          {cat} {col}
-                        </th>
-                      ))
-                    ))}
-                    <th style={{ padding: "10px 14px", textAlign: "right", color: TEXT, fontSize: 11, textTransform: "uppercase" }}>Grand Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {annualData.months.map((m, i) => {
-                    const ivig = m.categories["IVIG"];
-                    const heme = m.categories["HEME"];
-                    const isNow = m.month === new Date().toISOString().slice(0, 7);
-                    return (
-                      <tr key={m.month} style={{ borderBottom: `1px solid ${BORDER}`, background: isNow ? "rgba(59,130,246,0.07)" : i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.01)" }}>
-                        <td style={{ padding: "9px 14px", fontWeight: isNow ? 700 : 400, color: isNow ? BLUE : TEXT }}>
-                          {new Date(m.month + "-02").toLocaleString("en-US", { month: "short", year: "numeric" })}
-                          {isNow && <span style={{ marginLeft: 6, fontSize: 9, background: BLUE, color: "#fff", padding: "1px 5px", borderRadius: 3 }}>NOW</span>}
-                        </td>
-                        {([["IVIG", ivig, BLUE], ["HEME", heme, PURPLE]] as [string, AnnualCat | undefined, string][]).flatMap(([, d, col]) => [
-                          <td key={`${m.month}-${col}-1`} style={{ padding: "9px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: MUTED }}>{fmtM(d?.["1st_fill"] ?? 0)}</td>,
-                          <td key={`${m.month}-${col}-2`} style={{ padding: "9px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: MUTED }}>{fmtM(d?.["2nd_fill"] ?? 0)}</td>,
-                          <td key={`${m.month}-${col}-n`} style={{ padding: "9px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: MUTED }}>{fmtM(d?.new_start ?? 0)}</td>,
-                          <td key={`${m.month}-${col}-t`} style={{ padding: "9px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600, color: col }}>{fmtM(d?.total ?? 0)}</td>,
-                        ])}
-                        <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: TEXT }}>{fmtM(m.total)}</td>
-                      </tr>
-                    );
-                  })}
-                  <tr style={{ borderTop: `2px solid ${BORDER}`, background: "rgba(255,255,255,0.03)" }}>
-                    <td style={{ padding: "10px 14px", fontWeight: 700, color: TEXT }}>ANNUAL TOTAL</td>
-                    {([["IVIG", BLUE], ["HEME", PURPLE]] as [string, string][]).flatMap(([cat, col]) => {
-                      const a = annualData.annual[cat];
-                      return [
-                        <td key={`${cat}-1`} style={{ padding: "10px 8px", textAlign: "right", fontWeight: 700, color: MUTED }}>{fmtM(a?.["1st_fill"] ?? 0)}</td>,
-                        <td key={`${cat}-2`} style={{ padding: "10px 8px", textAlign: "right", fontWeight: 700, color: MUTED }}>{fmtM(a?.["2nd_fill"] ?? 0)}</td>,
-                        <td key={`${cat}-n`} style={{ padding: "10px 8px", textAlign: "right", fontWeight: 700, color: MUTED }}>{fmtM(a?.new_start ?? 0)}</td>,
-                        <td key={`${cat}-t`} style={{ padding: "10px 8px", textAlign: "right", fontWeight: 700, color: col }}>{fmtM(a?.total ?? 0)}</td>,
-                      ];
-                    })}
-                    <td style={{ padding: "10px 14px", textAlign: "right", fontWeight: 700, color: BLUE }}>
-                      {fmtM(Object.values(annualData.annual).reduce((s, v) => s + v.total, 0))}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+                );
+              })}
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        );
+      })()}
 
       {/* KPI Row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 16, marginBottom: 24 }}>
