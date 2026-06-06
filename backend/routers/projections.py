@@ -886,10 +886,11 @@ def get_projection_detail(db: Session = Depends(get_db)):
     categories: dict = {}
     for cat in CATS:
         total_opps = sum(opps_by_week[cat])
-        projection = (
-            actuals[cat] + scheduled[cat] + total_opps
-            + second_fill[cat] + new_starts[cat] - postpones[cat]
-        )
+        # Projection = forward-looking total: opps (all patients whose supply
+        # schedule lands in this month) + 2nd fills (patients with short supply
+        # who could fill twice this month).  Actuals, scheduled, and new_starts
+        # are shown as informational rows but are subsets of opps, not additive.
+        projection = total_opps + second_fill[cat] - postpones[cat]
         categories[cat] = {
             "goal": GOALS.get(cat, 0.0),
             "actual": round(actuals[cat]),
